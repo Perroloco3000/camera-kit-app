@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# SPA: todas las rutas redirigen a index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers para permitir acceso a la cámara
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Permissions-Policy = "camera=(self)"
+    Feature-Policy = "camera *"
