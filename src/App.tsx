@@ -1,281 +1,392 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { bootstrapCameraKit, CameraKitSession, createMediaStreamSource } from '@snap/camera-kit';
 import { CAMERA_KIT_CONFIG } from './config';
+import { hapticLight, hapticMedium, playShutterSound } from './utils/capture';
 import './App.css';
+
+type FacingMode = 'user' | 'environment';
+
+interface ThumbnailItem {
+  id: string;
+  url: string;
+  type: 'photo' | 'video';
+  blob: Blob;
+}
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [, setSession] = useState<CameraKitSession | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sessionRef = useRef<CameraKitSession | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitializingRef = useRef(false);
+  const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  const [cameraFacing, setCameraFacing] = useState<FacingMode>('user');
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [thumbnails, setThumbnails] = useState<ThumbnailItem[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [isCaptureDisabled, setIsCaptureDisabled] = useState(false);
 
-  const addDebug = (msg: string) => {
-    setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
-    console.log(msg);
-  };
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    let cameraKitSession: CameraKitSession | null = null;
-    let mediaStream: MediaStream | null = null;
-    let isMounted = true;
-    let isInitializing = false;
-
-    const initializeCameraKit = async () => {
-      // Prevent double initialization
-      if (isInitializing) {
-        addDebug('⚠️ Inicialización ya en progreso, ignorando...');
-        return;
-      }
-
-      // Wait for canvas to be available
-      if (!canvasRef.current) {
-        addDebug('Esperando canvas...');
-        // Retry after a short delay
-        setTimeout(() => {
-          if (isMounted && !isInitializing) initializeCameraKit();
-        }, 100);
-        return;
-      }
-
-      isInitializing = true;
-
-      try {
-        addDebug('🚀 Inicializando Camera Kit...');
-        setIsLoading(true);
-        setError('');
-
-        // 1. Bootstrap Camera Kit
-        addDebug('Bootstrap Camera Kit...');
-        const apiToken = CAMERA_KIT_CONFIG.useStaging 
-          ? CAMERA_KIT_CONFIG.apiToken.staging 
-          : CAMERA_KIT_CONFIG.apiToken.production;
-        addDebug(`Usando API Token: ${CAMERA_KIT_CONFIG.useStaging ? 'Staging' : 'Production'}`);
-        const cameraKit = await bootstrapCameraKit({
-          apiToken: apiToken,
-        });
-        addDebug('✅ Camera Kit bootstrapped');
-
-        // 2. Get canvas element (must be available now)
-        if (!canvasRef.current) {
-          throw new Error('Canvas element no encontrado');
-        }
-
-        // 3. Create session with canvas as render target
-        addDebug('Creando sesión con canvas...');
-        cameraKitSession = await cameraKit.createSession({
-          liveRenderTarget: canvasRef.current
-        });
-        setSession(cameraKitSession);
-        addDebug('✅ Sesión creada con render target');
-
-        // 5. Start camera first
-        addDebug('Iniciando cámara...');
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: CAMERA_KIT_CONFIG.camera.facingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-        addDebug(`✅ Cámara obtenida! Tracks: ${mediaStream.getVideoTracks().length}`);
-
-        // 6. Create CameraKitSource from media stream
-        addDebug('Creando fuente de Camera Kit...');
-        const source = createMediaStreamSource(mediaStream, {
-          cameraType: 'user'
-        });
-        
-        // 7. Set source
-        addDebug('Configurando fuente de video...');
-        await cameraKitSession.setSource(source);
-        addDebug('✅ Fuente de video configurada');
-        
-        // 8. Start rendering
-        addDebug('Iniciando renderizado...');
-        await cameraKitSession.play();
-        addDebug('✅ Renderizado iniciado');
-
-        // 9. Load and apply the specific lens
-        const lensId = CAMERA_KIT_CONFIG.lensId;
-        const lensGroupId = CAMERA_KIT_CONFIG.lensGroupId;
-        
-        addDebug(`Cargando Lens ID: ${lensId}`);
-        addDebug(`Lens Group ID: ${lensGroupId}`);
-        
-        try {
-          // Convert lens ID to string
-          const lensIdStr = String(lensId);
-          
-          // Method 1: Try loading lens directly with group ID
-          addDebug(`Intentando cargar lens directamente con ID: ${lensIdStr} y Group ID: ${lensGroupId}`);
-          
-          try {
-            const loadedLens = await cameraKit.lensRepository.loadLens(
-              lensIdStr,
-              lensGroupId
-            );
-            addDebug(`✅ Lens cargado directamente: ${loadedLens.name || lensIdStr}`);
-            addDebug(`Lens ID del objeto: ${loadedLens.id}`);
-            
-            // Apply lens to session
-            addDebug('Aplicando lens a la sesión...');
-            await cameraKitSession.applyLens(loadedLens);
-            addDebug('✅ Lens aplicado exitosamente');
-          } catch (directError: any) {
-            addDebug(`⚠️ No se pudo cargar directamente: ${directError.message}`);
-            addDebug('Intentando cargar desde grupo...');
-            
-            // Method 2: Load lens group and find the specific lens
-            const { lenses: lensesInGroup } = await cameraKit.lensRepository.loadLensGroups([lensGroupId]);
-            addDebug(`✅ Grupo cargado. Lenses encontrados: ${lensesInGroup.length}`);
-            
-            // Find the specific lens by ID
-            const targetLens = lensesInGroup.find((lens: { id: string }) => lens.id === lensIdStr || lens.id === lensId);
-            
-            if (!targetLens) {
-              addDebug(`Lenses disponibles en el grupo:`);
-              lensesInGroup.forEach((lens: { id: string; name?: string }, idx: number) => {
-                addDebug(`  [${idx}] ID: ${lens.id}, Nombre: ${lens.name || 'Sin nombre'}`);
-              });
-              throw new Error(`No se encontró el lens con ID "${lensIdStr}" en el grupo "${lensGroupId}". Lenses disponibles: ${lensesInGroup.map((l: { id: string }) => l.id).join(', ')}`);
-            }
-            
-            addDebug(`✅ Lens encontrado en el grupo: ${targetLens.name || lensIdStr}`);
-            addDebug(`Lens ID del objeto: ${targetLens.id}`);
-            
-            // Apply lens to session
-            addDebug('Aplicando lens a la sesión...');
-            await cameraKitSession.applyLens(targetLens);
-            addDebug('✅ Lens aplicado exitosamente');
-          }
-        } catch (lensError: any) {
-          addDebug(`❌ Error cargando lens: ${lensError.message}`);
-          addDebug(`Tipo de error: ${lensError.name}`);
-          console.error('Detalles del error del lens:', lensError);
-          throw new Error(`No se pudo cargar el lens con ID "${lensId}". Error: ${lensError.message}. Verifica que el Lens ID y Lens Group ID sean correctos y que tengas acceso a ellos con el API token actual.`);
-        }
-
-        addDebug('🎉 Camera Kit completamente inicializado!');
-
-        setIsLoading(false);
-        isInitializing = false;
-      } catch (err: any) {
-        const errorMsg = err.message || 'Error desconocido';
-        addDebug(`❌ Error: ${errorMsg}`);
-        console.error('Camera Kit error:', err);
-        setError(`Error: ${errorMsg}`);
-        setIsLoading(false);
-        isInitializing = false;
-      }
-    };
-
-    initializeCameraKit();
-
-    // Cleanup
-    return () => {
-      isMounted = false;
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-      }
-      if (cameraKitSession) {
-        try {
-          cameraKitSession.pause();
-        } catch (e) {
-          // Ignore cleanup errors
-        }
-      }
-    };
+  const stopRecording = useCallback(() => {
+    const mr = mediaRecorderRef.current;
+    if (mr && mr.state === 'recording') {
+      mr.stop();
+    }
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingSeconds(0);
   }, []);
 
+  const initCamera = useCallback(async (facing: FacingMode) => {
+    if (!canvasRef.current || isInitializingRef.current) return;
+    isInitializingRef.current = true;
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const apiToken = CAMERA_KIT_CONFIG.useStaging
+        ? CAMERA_KIT_CONFIG.apiToken.staging
+        : CAMERA_KIT_CONFIG.apiToken.production;
+      const cameraKit = await bootstrapCameraKit({ apiToken });
+
+      if (!canvasRef.current) return;
+      const session = await cameraKit.createSession({
+        liveRenderTarget: canvasRef.current,
+      });
+      sessionRef.current = session;
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: facing,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      mediaStreamRef.current = stream;
+
+      const source = createMediaStreamSource(stream, {
+        cameraType: facing === 'user' ? 'user' : 'environment',
+      });
+      await session.setSource(source);
+      await session.play();
+
+      const lensId = String(CAMERA_KIT_CONFIG.lensId);
+      const lensGroupId = CAMERA_KIT_CONFIG.lensGroupId;
+      try {
+        const lens = await cameraKit.lensRepository.loadLens(lensId, lensGroupId);
+        await session.applyLens(lens);
+      } catch {
+        try {
+          const { lenses } = await cameraKit.lensRepository.loadLensGroups([lensGroupId]);
+          const target = lenses.find((l: { id: string }) => l.id === lensId);
+          if (target) await session.applyLens(target);
+        } catch {
+          // continue without lens
+        }
+      }
+      setIsLoading(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al iniciar cámara');
+      setIsLoading(false);
+    } finally {
+      isInitializingRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    initCamera(cameraFacing);
+    return () => {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      sessionRef.current?.pause();
+    };
+  }, [cameraFacing, initCamera]);
+
+  const takePhoto = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || isCaptureDisabled) return;
+    try {
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      playShutterSound();
+      hapticLight();
+      fetch(dataUrl)
+        .then((r) => r.blob())
+        .then((blob) => {
+          const url = URL.createObjectURL(blob);
+          setThumbnails((prev) => [
+            ...prev.slice(-19),
+            { id: `${Date.now()}`, url, type: 'photo', blob },
+          ]);
+          saveToDevice(blob, `photo_${Date.now()}.jpg`);
+        });
+    } catch {
+      // ignore
+    }
+  }, [isCaptureDisabled]);
+
+  const saveToDevice = (blob: Blob, filename: string) => {
+    if ('showSaveFilePicker' in window) {
+      (window as unknown as { showSaveFilePicker: (o: { suggestedName: string }) => Promise<FileSystemFileHandle> })
+        .showSaveFilePicker({ suggestedName: filename })
+        .then((handle) => handle.createWritable())
+        .then((w) => w.write(blob).then(() => w.close()))
+        .catch(() => downloadFallback(blob, filename));
+    } else {
+      downloadFallback(blob, filename);
+    }
+  };
+
+  const downloadFallback = (blob: Blob, filename: string) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const startVideoRecording = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || isCaptureDisabled) return;
+    try {
+      const stream = canvas.captureStream(30);
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 2500000 });
+      recordedChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size) recordedChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        setThumbnails((prev) => [
+          ...prev.slice(-19),
+          { id: `v${Date.now()}`, url, type: 'video', blob },
+        ]);
+        saveToDevice(blob, `video_${Date.now()}.webm`);
+      };
+      recorder.start(100);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+      }, 1000);
+      hapticMedium();
+    } catch {
+      // fallback mime
+      try {
+        const stream = canvas.captureStream(30);
+        const recorder = new MediaRecorder(stream);
+        recordedChunksRef.current = [];
+        recorder.ondataavailable = (e) => {
+          if (e.data.size) recordedChunksRef.current.push(e.data);
+        };
+        recorder.onstop = () => {
+          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          setThumbnails((prev) => [...prev.slice(-19), { id: `v${Date.now()}`, url, type: 'video', blob }]);
+          saveToDevice(blob, `video_${Date.now()}.webm`);
+        };
+        recorder.start(100);
+        mediaRecorderRef.current = recorder;
+        setIsRecording(true);
+        setRecordingSeconds(0);
+        recordingIntervalRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+        hapticMedium();
+      } catch {
+        setIsRecording(false);
+      }
+    }
+  }, [isCaptureDisabled]);
+
+  const onCapturePointerDown = () => {
+    if (isRecording) return;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      setIsCaptureDisabled(true);
+      startVideoRecording();
+    }, 400);
+  };
+
+  const onCapturePointerUp = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+      takePhoto();
+    } else if (isRecording) {
+      stopRecording();
+      setIsCaptureDisabled(false);
+    }
+  };
+
+  const onCapturePointerLeave = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const flipCamera = () => {
+    if (isInitializingRef.current) return;
+    hapticLight();
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+    }
+    sessionRef.current?.pause();
+    setCameraFacing((f) => (f === 'user' ? 'environment' : 'user'));
+  };
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  };
+
+  // Gestures: horizontal = flip, vertical = zoom
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.targetTouches[0];
+    if (t) touchStartRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touchStartRef.current;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    const dt = Date.now() - start.t;
+    touchStartRef.current = null;
+    if (dt > 300) return;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+      flipCamera();
+    } else if (Math.abs(dy) > 50 && Math.abs(dy) > Math.abs(dx)) {
+      setZoomLevel((z) => (dy < 0 ? Math.min(2, z + 0.25) : Math.max(1, z - 0.25)));
+      hapticLight();
+    }
+  };
+
   return (
-    <div className="app-container">
-      <h1>🎥 Camera Kit Web - Lens Test</h1>
-      <p>
-        <strong>Lens ID:</strong> {CAMERA_KIT_CONFIG.lensId}<br/>
-        <strong>URL:</strong> {window.location.href}<br/>
-        <strong>Protocolo:</strong> {window.location.protocol}
-      </p>
-      
+    <div
+      className="app-mobile"
+      ref={containerRef}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      style={{ touchAction: 'manipulation' }}
+    >
+      {/* Hide any Snap branding / logos */}
+      <style>{`
+        [class*="snap"], [class*="Snap"], [id*="snap"], [id*="Snap"],
+        [class*="logo"], [class*="Logo"], [aria-label*="snap"], [aria-label*="Snap"],
+        [alt*="snap"], [alt*="Snap"], [class*="branding"] {
+          display: none !important;
+        }
+      `}</style>
+
       {error && (
-        <div className="error-message">
-          <h3>❌ {error}</h3>
+        <div className="app-error">
+          {error}
         </div>
       )}
 
-      <div className="camera-container">
+      <div className="camera-feed-wrap" style={{ transform: `scale(${zoomLevel})` }}>
         <canvas
           ref={canvasRef}
-          className="camera-view"
-          style={{
-            width: '100%',
-            height: 'auto',
-            display: isLoading ? 'none' : 'block',
-            background: '#000'
-          }}
+          className="camera-canvas"
+          style={{ display: isLoading ? 'none' : 'block' }}
         />
         {isLoading && (
-          <div className="camera-placeholder" style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#1a1a1a'
-          }}>
-            <div>
-              <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏳</div>
-              <div>Cargando Camera Kit...</div>
-            </div>
+          <div className="camera-loading">
+            <span>Cargando…</span>
           </div>
+        )}
+        {zoomLevel > 1 && (
+          <div className="zoom-indicator">{zoomLevel.toFixed(1)}×</div>
         )}
       </div>
 
-      <div style={{
-        background: '#1a1a1a',
-        color: '#00ff00',
-        padding: '1rem',
-        borderRadius: '8px',
-        marginTop: '1rem',
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        maxHeight: '200px',
-        overflow: 'auto',
-        textAlign: 'left'
-      }}>
-        <h3 style={{ marginTop: 0, color: 'white' }}>Debug Info:</h3>
-        {debugInfo.map((msg, idx) => (
-          <div key={idx}>{msg}</div>
-        ))}
-        {debugInfo.length === 0 && <div>Esperando eventos...</div>}
-      </div>
+      <div className="controls-bar">
+        <div className="controls-inner">
+          <button
+            type="button"
+            className="btn-flip"
+            onClick={flipCamera}
+            disabled={isLoading}
+            aria-label="Cambiar cámara"
+            title="Cambiar cámara"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 4v6h-6M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+            </svg>
+          </button>
 
-      <div className="instructions">
-        <h3>📋 Instrucciones:</h3>
-        <ol>
-          <li>
-            <strong>Permitir cámara:</strong> 
-            <ul>
-              <li>Haz clic en el 🔒 en la barra de URL</li>
-              <li>Selecciona "Configuración del sitio"</li>
-              <li>Cambia "Cámara" a "Permitir"</li>
-            </ul>
-          </li>
-          <li>
-            <strong>Verificar URL:</strong> Debe ser <code>https://localhost:5173</code> o <code>http://localhost:5173</code>
-          </li>
-          <li>
-            <strong>Si hay problemas:</strong>
-            <ul>
-              <li>Verifica que ninguna otra app use la cámara</li>
-              <li>Recarga la página</li>
-              <li>Revisa la consola del navegador para más detalles</li>
-            </ul>
-          </li>
-        </ol>
+          <div className="capture-wrap">
+            {isRecording && (
+              <div className="capture-progress-ring" style={{ '--duration': `${recordingSeconds}` } as React.CSSProperties}>
+                <svg viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="48" fill="none" stroke="rgba(255,55,95,0.4)" strokeWidth="4" />
+                  <circle
+                    className="capture-progress-circle"
+                    cx="50"
+                    cy="50"
+                    r="48"
+                    fill="none"
+                    stroke="#FF375F"
+                    strokeWidth="4"
+                    strokeDasharray={2 * Math.PI * 48}
+                    strokeDashoffset={2 * Math.PI * 48 * (1 - Math.min(recordingSeconds / 60, 1))}
+                    transform="rotate(-90 50 50)"
+                  />
+                </svg>
+              </div>
+            )}
+            <button
+              type="button"
+              className="btn-capture"
+              onPointerDown={onCapturePointerDown}
+              onPointerUp={onCapturePointerUp}
+              onPointerLeave={onCapturePointerLeave}
+              onContextMenu={(e) => e.preventDefault()}
+              disabled={isLoading}
+              aria-label={isRecording ? 'Detener grabación' : 'Tomar foto'}
+            />
+            {isRecording && (
+              <div className="recording-timer">{formatTime(recordingSeconds)}</div>
+            )}
+          </div>
+
+          <div className="btn-placeholder" aria-hidden />
+        </div>
+
+        <div className="thumbnails-bar">
+          <div className="thumbnails-scroll">
+            {thumbnails.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="thumb-item"
+                onClick={() => window.open(item.url, '_blank')}
+              >
+                {item.type === 'video' ? (
+                  <span className="thumb-badge">VID</span>
+                ) : null}
+                <img src={item.url} alt="" />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

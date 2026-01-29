@@ -44,16 +44,7 @@ git config user.email "perrosdemilp@gmail.com"
 
 ## Paso 4: Añadir archivos y primer commit
 
-```powershell
-git add .
-git status
-```
-
-Revisa que no aparezcan archivos que no quieras subir (por ejemplo `.pem`). Luego:
-
-```powershell
-git commit -m "Primer commit: Camera Kit Web con Lens"
-```
+**Ya hecho.** El repositorio local está inicializado y el primer commit está creado.
 
 ---
 
