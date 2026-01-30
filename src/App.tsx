@@ -17,6 +17,7 @@ function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<CameraKitSession | null>(null);
+  const cameraKitRef = useRef<Awaited<ReturnType<typeof bootstrapCameraKit>> | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -24,9 +25,11 @@ function App() {
   const isInitializingRef = useRef(false);
   const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
 
+  const lensIds = CAMERA_KIT_CONFIG.lensIds;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [cameraFacing, setCameraFacing] = useState<FacingMode>('user');
+  const [selectedLensId, setSelectedLensId] = useState<string>(lensIds[0]);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [thumbnails, setThumbnails] = useState<ThumbnailItem[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -59,6 +62,7 @@ function App() {
         ? CAMERA_KIT_CONFIG.apiToken.staging
         : CAMERA_KIT_CONFIG.apiToken.production;
       const cameraKit = await bootstrapCameraKit({ apiToken });
+      cameraKitRef.current = cameraKit;
 
       if (!canvasRef.current) return;
       const session = await cameraKit.createSession({
@@ -69,8 +73,8 @@ function App() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facing,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
         },
       });
       mediaStreamRef.current = stream;
@@ -80,21 +84,6 @@ function App() {
       });
       await session.setSource(source);
       await session.play();
-
-      const lensId = String(CAMERA_KIT_CONFIG.lensId);
-      const lensGroupId = CAMERA_KIT_CONFIG.lensGroupId;
-      try {
-        const lens = await cameraKit.lensRepository.loadLens(lensId, lensGroupId);
-        await session.applyLens(lens);
-      } catch {
-        try {
-          const { lenses } = await cameraKit.lensRepository.loadLensGroups([lensGroupId]);
-          const target = lenses.find((l: { id: string }) => l.id === lensId);
-          if (target) await session.applyLens(target);
-        } catch {
-          // continue without lens
-        }
-      }
       setIsLoading(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al iniciar cámara');
@@ -103,6 +92,30 @@ function App() {
       isInitializingRef.current = false;
     }
   }, []);
+
+  const applyLens = useCallback(async (lensId: string) => {
+    const session = sessionRef.current;
+    const cameraKit = cameraKitRef.current;
+    if (!session || !cameraKit) return;
+    const lensGroupId = CAMERA_KIT_CONFIG.lensGroupId;
+    try {
+      const lens = await cameraKit.lensRepository.loadLens(String(lensId), lensGroupId);
+      await session.applyLens(lens);
+    } catch {
+      try {
+        const { lenses } = await cameraKit.lensRepository.loadLensGroups([lensGroupId]);
+        const target = lenses.find((l: { id: string }) => l.id === String(lensId));
+        if (target) await session.applyLens(target);
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+    applyLens(selectedLensId);
+  }, [selectedLensId, isLoading, applyLens]);
 
   useEffect(() => {
     initCamera(cameraFacing);
@@ -159,46 +172,52 @@ function App() {
   const startVideoRecording = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || isCaptureDisabled) return;
+    const stream = canvas.captureStream(25);
+    const mimeOptions = [
+      'video/mp4',
+      'video/webm;codecs=vp8',
+      'video/webm;codecs=vp9',
+      'video/webm',
+    ];
+    let mime = '';
+    for (const opt of mimeOptions) {
+      if (MediaRecorder.isTypeSupported(opt)) {
+        mime = opt;
+        break;
+      }
+    }
+    if (!mime) mime = '';
+    const bitsPerSecond = 2000000;
+    recordedChunksRef.current = [];
+    const onStop = () => {
+      const type = mime || 'video/webm';
+      const blob = new Blob(recordedChunksRef.current, { type });
+      const url = URL.createObjectURL(blob);
+      setThumbnails((prev) => [...prev.slice(-19), { id: `v${Date.now()}`, url, type: 'video', blob }]);
+      const ext = type.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+      saveToDevice(blob, `video_${Date.now()}.${ext}`);
+    };
     try {
-      const stream = canvas.captureStream(30);
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 2500000 });
-      recordedChunksRef.current = [];
+      const recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: bitsPerSecond } : { videoBitsPerSecond: bitsPerSecond });
       recorder.ondataavailable = (e) => {
         if (e.data.size) recordedChunksRef.current.push(e.data);
       };
-      recorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        setThumbnails((prev) => [
-          ...prev.slice(-19),
-          { id: `v${Date.now()}`, url, type: 'video', blob },
-        ]);
-        saveToDevice(blob, `video_${Date.now()}.webm`);
-      };
-      recorder.start(100);
+      recorder.onstop = onStop;
+      recorder.start(200);
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
       setRecordingSeconds(0);
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingSeconds((s) => s + 1);
-      }, 1000);
+      recordingIntervalRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
       hapticMedium();
     } catch {
-      // fallback mime
       try {
-        const stream = canvas.captureStream(30);
-        const recorder = new MediaRecorder(stream);
         recordedChunksRef.current = [];
+        const recorder = new MediaRecorder(stream);
         recorder.ondataavailable = (e) => {
           if (e.data.size) recordedChunksRef.current.push(e.data);
         };
-        recorder.onstop = () => {
-          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-          const url = URL.createObjectURL(blob);
-          setThumbnails((prev) => [...prev.slice(-19), { id: `v${Date.now()}`, url, type: 'video', blob }]);
-          saveToDevice(blob, `video_${Date.now()}.webm`);
-        };
-        recorder.start(100);
+        recorder.onstop = onStop;
+        recorder.start(200);
         mediaRecorderRef.current = recorder;
         setIsRecording(true);
         setRecordingSeconds(0);
@@ -317,6 +336,23 @@ function App() {
       </div>
 
       <div className="controls-bar">
+        <div className="lens-selector">
+          {lensIds.map((id) => (
+            <button
+              key={id}
+              type="button"
+              className={`lens-option ${selectedLensId === id ? 'active' : ''}`}
+              onClick={() => {
+                hapticLight();
+                setSelectedLensId(id);
+              }}
+              disabled={isLoading}
+              aria-label={`Lente ${lensIds.indexOf(id) + 1}`}
+            >
+              {lensIds.indexOf(id) + 1}
+            </button>
+          ))}
+        </div>
         <div className="controls-inner">
           <button
             type="button"

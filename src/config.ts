@@ -9,10 +9,10 @@ export const CAMERA_KIT_CONFIG = {
   // Usa staging por defecto para desarrollo
   useStaging: true,
   
-  // Lens ID específico para pruebas (formato numérico)
-  lensId: '6f10abf5-e52d-4326-808a-dfa569f4f4f3',
+  // Lentes disponibles para elegir
+  lensIds: ['49414230875', '50507980875', '50502080875'],
   
-  // Lens Group ID (necesario para cargar el lens)
+  // Lens Group ID (necesario para cargar los lentes)
   lensGroupId: 'b65ebded-94d3-4570-9518-dc22795e866c',
   
   // Configuración de la cámara
