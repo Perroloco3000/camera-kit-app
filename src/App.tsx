@@ -37,6 +37,7 @@ function App() {
   const [isCaptureDisabled, setIsCaptureDisabled] = useState(false);
 
   const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastAppliedLensRef = useRef<string | null>(null);
 
   const stopRecording = useCallback(() => {
     const mr = mediaRecorderRef.current;
@@ -56,6 +57,7 @@ function App() {
     isInitializingRef.current = true;
     setIsLoading(true);
     setError('');
+    lastAppliedLensRef.current = null;
 
     try {
       const apiToken = CAMERA_KIT_CONFIG.useStaging
@@ -69,12 +71,12 @@ function App() {
         liveRenderTarget: canvasRef.current,
       });
       sessionRef.current = session;
-
+        
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facing,
-          width: { ideal: 640 },
-          height: { ideal: 480 },
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
         },
       });
       mediaStreamRef.current = stream;
@@ -97,6 +99,8 @@ function App() {
     const session = sessionRef.current;
     const cameraKit = cameraKitRef.current;
     if (!session || !cameraKit) return;
+    if (lastAppliedLensRef.current === lensId) return;
+    lastAppliedLensRef.current = lensId;
     const lensGroupId = CAMERA_KIT_CONFIG.lensGroupId;
     try {
       const lens = await cameraKit.lensRepository.loadLens(String(lensId), lensGroupId);
@@ -105,9 +109,11 @@ function App() {
       try {
         const { lenses } = await cameraKit.lensRepository.loadLensGroups([lensGroupId]);
         const target = lenses.find((l: { id: string }) => l.id === String(lensId));
-        if (target) await session.applyLens(target);
+        if (target) {
+          await session.applyLens(target);
+        }
       } catch {
-        // ignore
+        lastAppliedLensRef.current = null;
       }
     }
   }, []);
@@ -272,13 +278,21 @@ function App() {
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
 
-  // Gestures: horizontal = flip, vertical = zoom
+  const controlsBarRef = useRef<HTMLDivElement>(null);
+
+  const isInsideControls = (el: EventTarget | null): boolean => {
+    if (!el || !(el instanceof Node)) return false;
+    return controlsBarRef.current?.contains(el) ?? false;
+  };
+
   const onTouchStart = (e: React.TouchEvent) => {
+    if (isInsideControls(e.target)) return;
     const t = e.targetTouches[0];
     if (t) touchStartRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
   };
 
   const onTouchEnd = (e: React.TouchEvent) => {
+    if (isInsideControls(e.target)) return;
     const start = touchStartRef.current;
     if (!start) return;
     const t = e.changedTouches[0];
@@ -312,7 +326,7 @@ function App() {
           display: none !important;
         }
       `}</style>
-
+      
       {error && (
         <div className="app-error">
           {error}
@@ -335,10 +349,10 @@ function App() {
         )}
       </div>
 
-      <div className="controls-bar">
+      <div className="controls-bar" ref={controlsBarRef}>
         <div className="lens-selector">
           {lensIds.map((id) => (
-            <button
+              <button 
               key={id}
               type="button"
               className={`lens-option ${selectedLensId === id ? 'active' : ''}`}
@@ -366,7 +380,7 @@ function App() {
               <path d="M23 4v6h-6M1 20v-6h6" />
               <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
             </svg>
-          </button>
+              </button>
 
           <div className="capture-wrap">
             {isRecording && (
@@ -404,7 +418,7 @@ function App() {
           </div>
 
           <div className="btn-placeholder" aria-hidden />
-        </div>
+      </div>
 
         <div className="thumbnails-bar">
           <div className="thumbnails-scroll">
@@ -422,7 +436,7 @@ function App() {
               </button>
             ))}
           </div>
-        </div>
+      </div>
       </div>
     </div>
   );

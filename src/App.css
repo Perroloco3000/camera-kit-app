@@ -84,11 +84,16 @@
   border-radius: 8px;
 }
 
-/* ===== Controls bar: 15% bottom, glassmorphism ===== */
+/* ===== Controls bar: fija en la parte inferior, siempre visible ===== */
 .controls-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
   flex-shrink: 0;
   padding-bottom: env(safe-area-inset-bottom, 0);
-  background: rgba(0, 0, 0, 0.4);
+  background: transparent;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
@@ -108,8 +113,8 @@
   min-height: 44px;
   padding: 8px 14px;
   border-radius: 22px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
   color: #fff;
   font-size: 15px;
   font-weight: 600;
@@ -119,8 +124,8 @@
 }
 
 .lens-option.active {
-  background: #FF375F;
-  border-color: #FF375F;
+  background: rgba(255, 55, 95, 0.4);
+  border-color: rgba(255, 255, 255, 0.8);
   color: #fff;
 }
 
@@ -164,7 +169,7 @@
 }
 
 .btn-flip:active:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* ===== Capture button: 70px mobile / 50px desktop, #FF375F ===== */
@@ -181,13 +186,15 @@
   min-width: 70px;
   min-height: 70px;
   border-radius: 50%;
-  border: 4px solid #fff;
-  background: #FF375F;
+  border: 4px solid rgba(255, 255, 255, 0.9);
+  background: transparent;
   cursor: pointer;
   padding: 0;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 0 3px rgba(255, 55, 95, 0.5);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
+  z-index: 10;
 }
 
 .btn-capture:disabled {
@@ -252,10 +259,10 @@
   min-width: 56px;
   min-height: 56px;
   padding: 0;
-  border: none;
+  border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;
   overflow: hidden;
-  background: #222;
+  background: transparent;
   cursor: pointer;
   position: relative;
   scroll-snap-align: start;
@@ -319,15 +326,18 @@
   }
 }
 
-/* ===== Aspect ratio 9:16 for camera area on narrow viewports ===== */
-@media (max-width: 768px) and (orientation: portrait) {
-  .camera-feed-wrap {
-    aspect-ratio: 9 / 16;
-    max-height: 85vh;
-    flex: none;
+/* ===== Mobile: espacio para controles fijos en la parte inferior ===== */
+@media (max-width: 768px) {
+  .app-mobile {
+    padding-bottom: 180px;
   }
 
-  .app-mobile {
-    justify-content: flex-start;
+  .controls-bar {
+    min-height: 180px;
+  }
+
+  .controls-inner {
+    padding: 12px 16px;
+    min-height: 72px;
   }
 }
