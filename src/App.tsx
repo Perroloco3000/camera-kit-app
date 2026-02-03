@@ -202,6 +202,9 @@ function App() {
       videoBitsPerSecond: RESOLUTIONS[qualityMode].bitrate
     };
 
+    hapticMedium();
+    playShutterSound();
+
     try {
       const recorder = new MediaRecorder(stream, options);
       recordedChunksRef.current = [];
@@ -244,6 +247,7 @@ function App() {
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
+      hapticLight();
     }
     setIsRecording(false);
   }, []);
@@ -279,6 +283,15 @@ function App() {
 
       {/* 2. HUD Layer */}
       <div className="hud-layer">
+
+        {error && (
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            background: 'rgba(255, 0, 0, 0.7)', padding: '20px', borderRadius: '8px', zIndex: 999
+          }}>
+            {error}
+          </div>
+        )}
 
         {/* Top Bar */}
         <div className="hud-top">
@@ -322,6 +335,12 @@ function App() {
           <button className="btn-icon" onClick={() => setShowGrid(!showGrid)} title="Toggle Grid">
             <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" /></svg>
           </button>
+
+          {thumbnails.length > 0 && (
+            <button className="btn-icon" onClick={() => window.open(thumbnails[thumbnails.length - 1].url, '_blank')} title="Last Clip">
+              <img src={thumbnails[thumbnails.length - 1].url} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+            </button>
+          )}
 
           <button className="btn-icon" onClick={() => {
             const modes: QualityPreset[] = ['stream', 'recording', 'broadcast'];
