@@ -277,7 +277,6 @@ function App() {
       {isLoading && (
         <div className="loading-overlay">
           <div className="loader"></div>
-          <div className="welcome-text">Iniciando Sistema Broadcast...</div>
         </div>
       )}
 
@@ -355,7 +354,7 @@ function App() {
             onClick={isRecording ? stopRecording : startRecording}
           />
 
-          <div className="lens-mini-carousel">
+          <div className="lens-mini-carousel" style={{ display: 'none' }}>
             {CAMERA_KIT_CONFIG.lensIds.map(id => (
               <div
                 key={id}
