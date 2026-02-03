@@ -11,6 +11,7 @@ interface ThumbnailItem {
   url: string;
   type: 'photo' | 'video';
   blob: Blob;
+  filename?: string;
 }
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [isCaptureDisabled, setIsCaptureDisabled] = useState(false);
+  const [hasAutoRecorded, setHasAutoRecorded] = useState(false);
 
   const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAppliedLensRef = useRef<string | null>(null);
@@ -71,8 +73,9 @@ function App() {
         liveRenderTarget: canvasRef.current,
       });
       sessionRef.current = session;
-        
+
       const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
         video: {
           facingMode: facing,
           width: { ideal: 1280, max: 1920 },
@@ -133,6 +136,8 @@ function App() {
     };
   }, [cameraFacing, initCamera]);
 
+
+
   const takePhoto = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || isCaptureDisabled) return;
@@ -178,7 +183,13 @@ function App() {
   const startVideoRecording = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || isCaptureDisabled) return;
-    const stream = canvas.captureStream(25);
+
+    // Create a combined stream with video from canvas and audio from microphone
+    const canvasStream = canvas.captureStream(30);
+    const audioTracks = mediaStreamRef.current?.getAudioTracks() || [];
+    const combinedTracks = [...canvasStream.getVideoTracks(), ...audioTracks];
+    const stream = new MediaStream(combinedTracks);
+
     const mimeOptions = [
       'video/mp4',
       'video/webm;codecs=vp8',
@@ -201,7 +212,18 @@ function App() {
       const url = URL.createObjectURL(blob);
       setThumbnails((prev) => [...prev.slice(-19), { id: `v${Date.now()}`, url, type: 'video', blob }]);
       const ext = type.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
-      saveToDevice(blob, `video_${Date.now()}.${ext}`);
+      const filename = `video_${Date.now()}.${ext}`;
+      saveToDevice(blob, filename);
+
+      // Update the last added item with the filename for sharing
+      setThumbnails((prev) => {
+        const newItems = [...prev];
+        const lastItem = newItems[newItems.length - 1];
+        if (lastItem && lastItem.type === 'video' && !lastItem.filename) {
+          lastItem.filename = filename;
+        }
+        return newItems;
+      });
     };
     try {
       const recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: bitsPerSecond } : { videoBitsPerSecond: bitsPerSecond });
@@ -310,6 +332,40 @@ function App() {
     }
   };
 
+  const shareItem = async (item: ThumbnailItem) => {
+    if (!navigator.share) {
+      alert('Sharing not supported on this device');
+      return;
+    }
+    try {
+      const file = new File([item.blob], item.filename || `file_${Date.now()}.${item.type === 'video' ? 'mp4' : 'jpg'}`, { type: item.blob.type });
+      await navigator.share({
+        files: [file],
+        title: 'My AR Creation',
+        text: 'Check this out!',
+      });
+    } catch (err) {
+      console.error('Error sharing:', err);
+    }
+  };
+
+  // Auto-recording logic
+  useEffect(() => {
+    if (!isLoading && !hasAutoRecorded && !isRecording && canvasRef.current) {
+      // Wait a small moment for everything to settle
+      const timer = setTimeout(() => {
+        setHasAutoRecorded(true);
+        startVideoRecording();
+
+        // Stop after 15 seconds
+        setTimeout(() => {
+          stopRecording();
+        }, 15000);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, hasAutoRecorded, isRecording, startVideoRecording, stopRecording]);
+
   return (
     <div
       className="app-mobile"
@@ -326,7 +382,7 @@ function App() {
           display: none !important;
         }
       `}</style>
-      
+
       {error && (
         <div className="app-error">
           {error}
@@ -352,7 +408,7 @@ function App() {
       <div className="controls-bar" ref={controlsBarRef}>
         <div className="lens-selector">
           {lensIds.map((id) => (
-              <button 
+            <button
               key={id}
               type="button"
               className={`lens-option ${selectedLensId === id ? 'active' : ''}`}
@@ -380,7 +436,7 @@ function App() {
               <path d="M23 4v6h-6M1 20v-6h6" />
               <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
             </svg>
-              </button>
+          </button>
 
           <div className="capture-wrap">
             {isRecording && (
@@ -418,25 +474,58 @@ function App() {
           </div>
 
           <div className="btn-placeholder" aria-hidden />
-      </div>
+        </div>
 
         <div className="thumbnails-bar">
           <div className="thumbnails-scroll">
             {thumbnails.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className="thumb-item"
-                onClick={() => window.open(item.url, '_blank')}
-              >
-                {item.type === 'video' ? (
-                  <span className="thumb-badge">VID</span>
-                ) : null}
-                <img src={item.url} alt="" />
-              </button>
+              <div className="thumb-wrapper" key={item.id} style={{ position: 'relative', display: 'inline-block' }}>
+                <button
+                  type="button"
+                  className="thumb-item"
+                  onClick={() => window.open(item.url, '_blank')}
+                >
+                  {item.type === 'video' ? (
+                    <span className="thumb-badge">VID</span>
+                  ) : null}
+                  <img src={item.url} alt="" />
+                </button>
+                <button
+                  type="button"
+                  className="btn-share-thumb"
+                  style={{
+                    position: 'absolute',
+                    top: -5,
+                    right: -5,
+                    background: 'white',
+                    borderRadius: '50%',
+                    width: 24,
+                    height: 24,
+                    border: 'none',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    zIndex: 10
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    shareItem(item);
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="18" cy="5" r="3"></circle>
+                    <circle cx="6" cy="12" r="3"></circle>
+                    <circle cx="18" cy="19" r="3"></circle>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                  </svg>
+                </button>
+              </div>
             ))}
           </div>
-      </div>
+        </div>
       </div>
     </div>
   );
