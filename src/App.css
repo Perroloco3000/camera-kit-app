@@ -1,340 +1,224 @@
 :root {
-  --neon-blue: #00f3ff;
-  --pure-black: #000000;
-  --hud-bg: rgba(0, 0, 0, 0.6);
-  --hud-text: #ffffff;
-  --font-mono: 'Courier New', Courier, monospace;
+  --bg-dark: #121212;
+  --bg-panel: #1E1E1E;
+  --text-primary: #FFFFFF;
+  --text-secondary: #AAAAAA;
+  --accent: #FFFC00;
+  /* Snapchat Yellow-ish */
 }
 
-* {
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-}
-
-body,
-html {
+body {
   margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  background-color: var(--pure-black);
-  overflow: hidden;
-  font-family: var(--font-mono);
-  color: var(--hud-text);
-  user-select: none;
-}
-
-.app-container {
-  position: relative;
-  width: 100vw;
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
   height: 100vh;
-  background: var(--pure-black);
   overflow: hidden;
 }
 
-/* --- Camera Layer --- */
-.camera-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
+.split-container {
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Control Panel */
+.control-panel {
+  background: var(--bg-panel);
+  padding: 2rem;
   display: flex;
+  flex-direction: column;
+  border-right: 1px solid #333;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+}
+
+.control-panel h1 {
+  font-size: 1.5rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.control-panel p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 2rem;
+}
+
+/* Guest Selector */
+.guest-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.guest-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #2A2A2A;
+  border: 2px solid transparent;
+  padding: 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  color: white;
+}
+
+.guest-card:hover {
+  background: #333;
+}
+
+.guest-card.active {
+  background: #3A3A3A;
+  /* Border color handled inline */
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #000;
+}
+
+/* QR Section */
+.qr-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
 }
 
-.camera-canvas {
-  /* Using object-fit: cover equivalent logic via JS scaling usually,
-     but here we ensure it takes max space. */
+.qr-code-box {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.qr-hint {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+/* Simulate Button */
+.simulate-btn {
+  margin-top: auto;
+  background: var(--accent);
+  color: black;
+  border: none;
+  padding: 1rem;
+  font-weight: bold;
+  font-size: 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.simulate-btn:active {
+  transform: scale(0.98);
+}
+
+/* AR Panel */
+.ar-panel {
+  position: relative;
+  background: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ar-canvas {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 }
 
-/* Color Grading Filters */
-.grade-cinema {
-  filter: contrast(1.1) saturate(0.9) brightness(0.95);
-}
-
-.grade-vivid {
-  filter: contrast(1.05) saturate(1.2);
-}
-
-.grade-natural {
-  filter: none;
-}
-
-/* --- HUD Layer --- */
-.hud-layer {
+/* Overlay */
+.ar-overlay {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 10;
   pointer-events: none;
-  /* Let clicks pass through to controls */
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: 20px;
-  padding-top: max(20px, env(safe-area-inset-top));
-  padding-bottom: max(20px, env(safe-area-inset-bottom));
-  padding-left: max(20px, env(safe-area-inset-left));
-  padding-right: max(20px, env(safe-area-inset-right));
+  align-items: center;
+  padding-top: 4rem;
 }
 
-/* HUD Top Bar */
-.hud-top {
-  display: flex;
-  justify-content: space-between;
-  justify-content: space-between;
-  align-items: flex-start;
-  font-size: 12px;
-  width: 100%;
-  font-size: 14px;
+.scan-confirmation {
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1rem 2rem;
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
+  text-align: center;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.scanned-badge {
+  background: white;
+  color: black;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
   text-transform: uppercase;
   letter-spacing: 1px;
-  text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
 }
 
-.rec-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #ff3333;
-  font-weight: bold;
-}
-
-.rec-dot {
-  width: 12px;
-  height: 12px;
-  background-color: #ff3333;
-  border-radius: 50%;
-  box-shadow: 0 0 8px #ff3333;
-  animation: blink 1s infinite;
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-.status-group {
-  display: flex;
-  gap: 15px;
-}
-
-.status-item {
-  color: var(--neon-blue);
-}
-
-/* Grid Guides */
-.grid-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 5;
-  pointer-events: none;
-  opacity: 0.3;
-}
-
-.grid-lines {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr;
-}
-
-.grid-cell {
-  border: 1px solid rgba(255, 255, 255, 0.5);
-}
-
-/* --- Controls Layer --- */
-.controls-dock {
-  position: absolute;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  background: rgba(10, 10, 10, 0.85);
-  backdrop-filter: blur(12px);
-  padding: 12px 24px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  transition: opacity 0.5s ease, transform 0.5s ease;
-  pointer-events: auto;
-  margin-bottom: max(10px, env(safe-area-inset-bottom));
-  max-width: 90vw;
-  overflow-x: auto;
-}
-
-.controls-dock.hidden {
-  opacity: 0;
-  transform: translateX(-50%) translateY(20px);
-  pointer-events: none;
-}
-
-button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: white;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-button:active {
-  transform: scale(0.95);
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-record {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  border: 3px solid white;
-  position: relative;
-}
-
-.btn-record::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 50px;
-  height: 50px;
-  background-color: #ff3333;
-  border-radius: 50%;
-  transition: all 0.3s;
-}
-
-.btn-record.recording {
-  border-color: #ff3333;
-}
-
-.btn-record.recording::after {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  /* Stop square */
-}
-
-.btn-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.btn-icon:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: var(--neon-blue);
-}
-
-/* Lens Selector Mini */
-.lens-mini-carousel {
-  display: flex;
-  gap: 8px;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 4px;
-  padding: 4px;
-  border-radius: 20px;
-  display: none;
-  /* Forced hidden as per request */
-}
-
-.lens-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-  cursor: pointer;
-}
-
-.lens-dot.active {
-  background: var(--neon-blue);
-  box-shadow: 0 0 8px var(--neon-blue);
-}
-
-/* Stats Overlay */
-.stats-panel {
-  position: absolute;
-  top: 60px;
-  right: 20px;
-  background: rgba(0, 0, 0, 0.8);
-  border: 1px solid var(--neon-blue);
-  padding: 10px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.5;
-  z-index: 100;
-  pointer-events: none;
-  min-width: 120px;
-}
-
-.stat-row {
-  display: flex;
-  justify-content: space-between;
-}
-
-.stat-value {
-  color: var(--neon-blue);
-}
-
-/* Loading */
-.loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: black;
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 20px;
+.scan-confirmation h2 {
+  margin: 0.5rem 0 0 0;
+  font-size: 2rem;
 }
 
 .loader {
-  width: 40px;
-  height: 40px;
-  border: 2px solid var(--neon-blue);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  color: white;
+  font-weight: bold;
 }
 
-@keyframes spin {
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
   to {
-    transform: rotate(360deg);
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-.welcome-text {
-  font-family: var(--font-mono);
-  letter-spacing: 4px;
-  text-transform: uppercase;
-  color: white;
-  font-size: 12px;
+@media (max-width: 900px) {
+  .split-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .control-panel {
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid #333;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    gap: 2rem;
+    padding: 1rem;
+  }
+
+  .qr-section,
+  .simulate-btn {
+    margin: 0;
+  }
 }
