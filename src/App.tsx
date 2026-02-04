@@ -12,9 +12,9 @@ interface Guest {
 }
 
 const GUESTS: Guest[] = [
-  { id: 'guest_1', name: 'María', color: '#FF4081' }, // Pink
-  { id: 'guest_2', name: 'José', color: '#448AFF' },  // Blue
-  { id: 'guest_3', name: 'Pedro', color: '#69F0AE' }, // Green
+  { id: 'guest_1', name: 'María', color: '#FF4081' },
+  { id: 'guest_2', name: 'José', color: '#448AFF' },
+  { id: 'guest_3', name: 'Pedro', color: '#69F0AE' },
 ];
 
 function App() {
@@ -32,6 +32,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [uiVisible, setUiVisible] = useState(true);
 
   // 1. Camera Initialization
   const initCamera = useCallback(async () => {
@@ -53,22 +54,28 @@ function App() {
       });
       sessionRef.current = session;
 
+      // Mobile Optimization: Remove strict ideal constraints allow browser to choose best native
+      // rendering is handled by Camera Kit's canvas scaling usually
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 1280, height: 720 },
-        audio: true // Audio for recording
+        video: {
+          facingMode: 'user',
+          // Simplified constraints for speed/compatibility
+          width: { ideal: 720 }
+        },
+        audio: true
       });
 
       const source = createMediaStreamSource(stream);
       await session.setSource(source);
       await session.play();
 
-      // Load initial lens without customization
+      // Load initial lens 
       await loadLens(CAMERA_KIT_CONFIG.lensIds[0], null);
 
       setIsLoading(false);
     } catch (err) {
       console.error(err);
-      setError('Error iniciando cámara');
+      setError('Error iniciando cámara. Permite el acceso.');
     } finally {
       isInitializingRef.current = false;
     }
@@ -103,26 +110,28 @@ function App() {
 
   // Simulate Scan Logic
   const handleSimulateScan = () => {
+    setUiVisible(false); // Hide the overlay
     setScannedGuest(selectedGuest);
     loadLens(CAMERA_KIT_CONFIG.lensIds[0], selectedGuest);
   };
 
   const handleBack = () => {
     setScannedGuest(null);
-    // Optional: reload lens without guest data if desired, 
-    // but usually keeping the last state is fine or resetting:
-    // loadLens(CAMERA_KIT_CONFIG.lensIds[0], null); 
+    setUiVisible(true); // Show overlay again
   };
 
   // Recording Logic
-  const startRecording = () => {
-    if (!canvasRef.current) return;
-    try {
+  const toggleRecording = () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+    } else {
+      if (!canvasRef.current) return;
       const stream = canvasRef.current.captureStream(30);
-      const options = { mimeType: 'video/webm' };
+      const options = { mimeType: 'video/webm' }; // Simplest for mobile
       const recorder = new MediaRecorder(stream, options);
-
       recordedChunksRef.current = [];
+
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) recordedChunksRef.current.push(e.data);
       };
@@ -139,98 +148,87 @@ function App() {
       recorder.start();
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
-    } catch (e) {
-      console.error("Recording failed", e);
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const toggleRecording = () => {
-    if (isRecording) stopRecording();
-    else startRecording();
-  };
-
-  // Generate QR Value
-  const qrValue = JSON.stringify({
-    id: selectedGuest.id,
-    name: selectedGuest.name,
-    timestamp: Date.now()
-  });
+  // Generate QR Value with simple memo (though unnecessary for this scale, good practice)
+  const qrValue = JSON.stringify({ id: selectedGuest.id });
 
   return (
-    <div className={`split-container ${scannedGuest ? 'full-screen-mode' : ''}`}>
+    <div className="app-container">
 
-      {/* Panel 1: Controls & Guest Selection */}
-      <div className={`control-panel ${scannedGuest ? 'hidden' : ''}`}>
-        <h1>Event Check-In</h1>
-        <p>Selecciona un invitado para generar su pase AR.</p>
-
-        <div className="guest-selector">
-          {GUESTS.map(g => (
-            <button
-              key={g.id}
-              className={`guest-card ${selectedGuest.id === g.id ? 'active' : ''}`}
-              onClick={() => setSelectedGuest(g)}
-              style={{ borderColor: selectedGuest.id === g.id ? g.color : 'transparent' }}
-            >
-              <div className="avatar" style={{ background: g.color }}>
-                {g.name[0]}
-              </div>
-              <span>{g.name}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="qr-section">
-          <div className="qr-code-box">
-            <QRCodeSVG value={qrValue} size={180} />
-          </div>
-          <p className="qr-hint">Escanea este código o simula el escaneo</p>
-        </div>
-
-        <button className="simulate-btn" onClick={handleSimulateScan}>
-          Simular Escaneo &rarr;
-        </button>
+      {/* Layer 0: Camera (Always visible, full screen) */}
+      <div className="camera-background">
+        <canvas ref={canvasRef} className="camera-canvas" />
       </div>
 
-      {/* Panel 2: AR View */}
-      <div className={`ar-panel ${scannedGuest ? 'full-screen' : ''}`}>
-        <canvas ref={canvasRef} className="ar-canvas" />
+      {/* Layer 1: UI Overlay (Guest Selection) */}
+      {uiVisible && (
+        <div className="ui-overlay fadeIn">
+          <div className="card-glass">
+            <header>
+              <h2>Bienvenido</h2>
+              <p>Selecciona tu perfil de invitado</p>
+            </header>
 
-        {/* Overlay Info (Only during selection or initial loading) */}
-        {!scannedGuest && (
-          <div className="ar-overlay">
-            {isLoading && <div className="loader">Iniciando AR...</div>}
-            {error && <div className="error-msg">{error}</div>}
-          </div>
-        )}
-
-        {/* Full Screen Controls */}
-        {scannedGuest && (
-          <div className="fs-controls">
-            <button className="icon-btn back-btn" onClick={handleBack}>
-              &larr; Volver
-            </button>
-
-            <div className="scan-confirmation-fs" style={{ borderColor: scannedGuest.color }}>
-              <span style={{ color: scannedGuest.color }}>HOLA {scannedGuest.name.toUpperCase()}</span>
+            <div className="guest-scroller">
+              {GUESTS.map(g => (
+                <button
+                  key={g.id}
+                  className={`guest-chip ${selectedGuest.id === g.id ? 'selected' : ''}`}
+                  onClick={() => setSelectedGuest(g)}
+                  style={{
+                    background: selectedGuest.id === g.id ? g.color : 'rgba(255,255,255,0.1)',
+                    color: selectedGuest.id === g.id ? '#000' : '#FFF'
+                  }}
+                >
+                  {g.name}
+                </button>
+              ))}
             </div>
 
-            <button
-              className={`record-btn ${isRecording ? 'recording' : ''}`}
-              onClick={toggleRecording}
-            >
-              <div className="inner-dot"></div>
+            <div className="qr-preview">
+              <QRCodeSVG value={qrValue} size={140} bgColor={"#ffffff"} fgColor={"#000000"} />
+            </div>
+
+            <button className="cta-button" onClick={handleSimulateScan}>
+              Escanear Pase AR
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Layer 2: AR Controls (Once scanned) */}
+      {!uiVisible && scannedGuest && (
+        <div className="ar-controls fadeIn">
+          <div className="top-bar">
+            <button className="icon-btn" onClick={handleBack}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+            </button>
+            <div className="guest-badge" style={{ backgroundColor: scannedGuest.color }}>
+              {scannedGuest.name}
+            </div>
+          </div>
+
+          <div className="bottom-bar">
+            <button
+              className={`record-trigger ${isRecording ? 'recording' : ''}`}
+              onClick={toggleRecording}
+            >
+              <div className="trigger-inner"></div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading / Error Feedback */}
+      {(isLoading || error) && (
+        <div className="status-overlay">
+          {isLoading && <div className="spinner"></div>}
+          {error && <div className="error-toast">{error}</div>}
+        </div>
+      )}
+
     </div>
   );
 }
