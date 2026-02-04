@@ -20,9 +20,10 @@ const GUESTS: Guest[] = [
 function App() {
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
   const sessionRef = useRef<CameraKitSession | null>(null);
   const cameraKitRef = useRef<Awaited<ReturnType<typeof bootstrapCameraKit>> | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
   const isInitializingRef = useRef(false);
 
   // State
@@ -30,6 +31,7 @@ function App() {
   const [scannedGuest, setScannedGuest] = useState<Guest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
 
   // 1. Camera Initialization
   const initCamera = useCallback(async () => {
@@ -52,7 +54,8 @@ function App() {
       sessionRef.current = session;
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 1280, height: 720 }
+        video: { facingMode: 'user', width: 1280, height: 720 },
+        audio: true // Audio for recording
       });
 
       const source = createMediaStreamSource(stream);
@@ -74,7 +77,6 @@ function App() {
   const loadLens = async (lensId: string, guest: Guest | null) => {
     if (!sessionRef.current || !cameraKitRef.current) return;
     try {
-      // Prepare launch data if a guest is "scanned"
       const launchData = guest ? {
         launchParams: {
           guestName: guest.name,
@@ -105,6 +107,55 @@ function App() {
     loadLens(CAMERA_KIT_CONFIG.lensIds[0], selectedGuest);
   };
 
+  const handleBack = () => {
+    setScannedGuest(null);
+    // Optional: reload lens without guest data if desired, 
+    // but usually keeping the last state is fine or resetting:
+    // loadLens(CAMERA_KIT_CONFIG.lensIds[0], null); 
+  };
+
+  // Recording Logic
+  const startRecording = () => {
+    if (!canvasRef.current) return;
+    try {
+      const stream = canvasRef.current.captureStream(30);
+      const options = { mimeType: 'video/webm' };
+      const recorder = new MediaRecorder(stream, options);
+
+      recordedChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `guest_ar_${Date.now()}.webm`;
+        a.click();
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch (e) {
+      console.error("Recording failed", e);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) stopRecording();
+    else startRecording();
+  };
+
   // Generate QR Value
   const qrValue = JSON.stringify({
     id: selectedGuest.id,
@@ -113,9 +164,10 @@ function App() {
   });
 
   return (
-    <div className="split-container">
+    <div className={`split-container ${scannedGuest ? 'full-screen-mode' : ''}`}>
+
       {/* Panel 1: Controls & Guest Selection */}
-      <div className="control-panel">
+      <div className={`control-panel ${scannedGuest ? 'hidden' : ''}`}>
         <h1>Event Check-In</h1>
         <p>Selecciona un invitado para generar su pase AR.</p>
 
@@ -148,21 +200,36 @@ function App() {
       </div>
 
       {/* Panel 2: AR View */}
-      <div className="ar-panel">
+      <div className={`ar-panel ${scannedGuest ? 'full-screen' : ''}`}>
         <canvas ref={canvasRef} className="ar-canvas" />
 
-        {/* Overlay Info */}
-        <div className="ar-overlay">
-          {isLoading && <div className="loader">Iniciando AR...</div>}
-          {!isLoading && scannedGuest && (
-            <div className="scan-confirmation" style={{ color: scannedGuest.color }}>
-              <span className="scanned-badge">PAS VALIDADO</span>
-              <h2>Hola, {scannedGuest.name}</h2>
-            </div>
-          )}
-        </div>
+        {/* Overlay Info (Only during selection or initial loading) */}
+        {!scannedGuest && (
+          <div className="ar-overlay">
+            {isLoading && <div className="loader">Iniciando AR...</div>}
+            {error && <div className="error-msg">{error}</div>}
+          </div>
+        )}
 
-        {error && <div className="error-msg">{error}</div>}
+        {/* Full Screen Controls */}
+        {scannedGuest && (
+          <div className="fs-controls">
+            <button className="icon-btn back-btn" onClick={handleBack}>
+              &larr; Volver
+            </button>
+
+            <div className="scan-confirmation-fs" style={{ borderColor: scannedGuest.color }}>
+              <span style={{ color: scannedGuest.color }}>HOLA {scannedGuest.name.toUpperCase()}</span>
+            </div>
+
+            <button
+              className={`record-btn ${isRecording ? 'recording' : ''}`}
+              onClick={toggleRecording}
+            >
+              <div className="inner-dot"></div>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

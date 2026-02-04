@@ -21,6 +21,11 @@ body {
   grid-template-columns: 350px 1fr;
   height: 100vh;
   width: 100vw;
+  transition: all 0.5s ease;
+}
+
+.split-container.full-screen-mode {
+  grid-template-columns: 0px 1fr;
 }
 
 /* Control Panel */
@@ -32,6 +37,17 @@ body {
   border-right: 1px solid #333;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
   z-index: 10;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: all 0.5s ease;
+}
+
+.control-panel.hidden {
+  padding: 2rem 0;
+  /* Keep vertical padding to avoid jumpiness? No, better collapse */
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
 }
 
 .control-panel h1 {
@@ -136,6 +152,8 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
 .ar-canvas {
@@ -158,52 +176,104 @@ body {
   padding-top: 4rem;
 }
 
-.scan-confirmation {
-  background: rgba(0, 0, 0, 0.6);
-  padding: 1rem 2rem;
-  border-radius: 16px;
-  backdrop-filter: blur(8px);
-  text-align: center;
-  animation: fadeIn 0.5s ease-out;
-}
-
-.scanned-badge {
-  background: white;
-  color: black;
-  padding: 0.25rem 0.75rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.scan-confirmation h2 {
-  margin: 0.5rem 0 0 0;
-  font-size: 2rem;
-}
-
 .loader {
   color: white;
   font-weight: bold;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
+/* Full Screen Controls */
+.fs-controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* Let clicks pass to canvas if needed, but buttons need pointer-events auto */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 2rem;
+  box-sizing: border-box;
+}
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.fs-controls>* {
+  pointer-events: auto;
+}
+
+.icon-btn {
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  align-self: flex-start;
+  backdrop-filter: blur(4px);
+}
+
+.scan-confirmation-fs {
+  align-self: center;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 0.5rem 1.5rem;
+  border-radius: 20px;
+  border: 1px solid;
+  font-weight: bold;
+  backdrop-filter: blur(4px);
+  margin-bottom: auto;
+  /* Push to top area */
+  margin-top: 1rem;
+}
+
+/* Record Button */
+.record-btn {
+  align-self: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 4px solid white;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 2rem;
+}
+
+.inner-dot {
+  width: 60px;
+  height: 60px;
+  background: #ff4040;
+  border-radius: 50%;
+  transition: all 0.3s;
+}
+
+.record-btn:hover {
+  transform: scale(1.05);
+  /* Slight grow on hover */
+}
+
+.record-btn.recording .inner-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  /* Square stop icon */
+}
+
+.record-btn.recording {
+  border-color: #ff4040;
 }
 
 @media (max-width: 900px) {
   .split-container {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
+  }
+
+  .split-container.full-screen-mode {
+    grid-template-rows: 0 1fr;
   }
 
   .control-panel {
@@ -215,6 +285,12 @@ body {
     overflow-x: auto;
     gap: 2rem;
     padding: 1rem;
+  }
+
+  .control-panel.hidden {
+    height: 0;
+    padding: 0;
+    opacity: 0;
   }
 
   .qr-section,
