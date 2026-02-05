@@ -143,7 +143,16 @@ function App() {
 
     // Clear and draw CameraKit canvas
     ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
-    ctx.drawImage(sourceCanvas, 0, 0, targetCanvas.width, targetCanvas.height);
+
+    // Mirror front camera for natural selfie feel
+    if (facingMode === 'user') {
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(sourceCanvas, -targetCanvas.width, 0, targetCanvas.width, targetCanvas.height);
+      ctx.restore();
+    } else {
+      ctx.drawImage(sourceCanvas, 0, 0, targetCanvas.width, targetCanvas.height);
+    }
 
     // Wind simulation
     const windX = Math.sin(time * 0.5) * 15;
@@ -401,9 +410,9 @@ function App() {
     return () => window.removeEventListener('resize', setupCanvas);
   }, []);
 
-  // Start composite animation when guest is set
+  // Start composite animation when canvas is ready
   useEffect(() => {
-    if (scannedGuest && compositeCanvasRef.current) {
+    if (compositeCanvasRef.current) {
       animateComposite();
     }
     return () => {
@@ -411,7 +420,7 @@ function App() {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [scannedGuest, animateComposite]);
+  }, [animateComposite]);
 
   const toggleCamera = () => {
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
