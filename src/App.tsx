@@ -117,7 +117,7 @@ function App() {
   const initializeParticles = (guest: Guest, isLush = false) => {
     const particles: Particle[] = [];
     const canvas = compositeCanvasRef.current;
-    if (!canvas) return particles;
+    if (!canvas || canvas.width === 0) return [];
 
     const densityMultiplier = isLush ? 3 : 1;
     guest.particles.forEach(config => {
@@ -138,7 +138,7 @@ function App() {
           size: 25 + Math.random() * 25,
           opacity: 0,
           life: 0,
-          maxLife: (isLush ? 5 : 3) + Math.random() * 3,
+          maxLife: (isLush ? 6 : 4) + Math.random() * 4,
           windOffsetX: 0,
           windOffsetY: 0
         });
@@ -150,14 +150,17 @@ function App() {
   const applyLensData = useCallback(async (lensId: string, guest: Guest | null) => {
     if (!sessionRef.current || !cameraKitRef.current) return;
     try {
-      const launchData = guest ? {
+      const gName = guest ? guest.name : 'Jardín';
+      const gColor = guest ? guest.color : '#81c784';
+
+      const launchData = {
         launchParams: {
-          guestName: guest.name,
-          guestColor: guest.color,
-          name: guest.name,
-          color: guest.color
+          guestName: gName,
+          guestColor: gColor,
+          name: gName,
+          color: gColor
         }
-      } : undefined;
+      };
 
       const lens = await cameraKitRef.current.lensRepository.loadLens(lensId, CAMERA_KIT_CONFIG.lensGroupId);
       await sessionRef.current.applyLens(lens, launchData);
@@ -199,7 +202,7 @@ function App() {
       setIsLoading(false);
     } catch (err) {
       console.error("Camera Error", err);
-      setError('Error al conectar la cámara.');
+      setError('Activa la cámara para vivir la experiencia.');
     } finally {
       isInitializingRef.current = false;
     }
@@ -217,14 +220,16 @@ function App() {
       return;
     }
 
-    const ctx = targetCanvas.getContext('2d');
+    const ctx = targetCanvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
     timeRef.current += 0.016;
     const time = timeRef.current;
     const { isLanding: landing, scannedGuest: guest, facingMode: mode } = stateRef.current;
 
-    ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+    // Background color
+    ctx.fillStyle = landing ? '#001a0d' : '#000';
+    ctx.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
 
     if (!landing && canvasRef.current && canvasRef.current.width > 0) {
       if (mode === 'user') {
@@ -239,7 +244,8 @@ function App() {
 
     const activeGuest = guest || FALLBACK_GUEST;
     if (particlesRef.current.length === 0) {
-      particlesRef.current = initializeParticles(activeGuest, landing);
+      const p = initializeParticles(activeGuest, landing);
+      if (p.length > 0) particlesRef.current = p;
     }
 
     const windX = Math.sin(time * 0.5) * 15;
@@ -296,6 +302,10 @@ function App() {
       if (compositeCanvasRef.current) {
         compositeCanvasRef.current.width = window.innerWidth;
         compositeCanvasRef.current.height = window.innerHeight;
+        // Re-init particles on resize if we have dimensions now
+        if (particlesRef.current.length === 0) {
+          particlesRef.current = initializeParticles(stateRef.current.scannedGuest || FALLBACK_GUEST, stateRef.current.isLanding);
+        }
       }
     };
     setup();
@@ -317,15 +327,15 @@ function App() {
 
   if (isLanding) {
     return (
-      <div className="landing-page">
-        <canvas ref={compositeCanvasRef} className="landing-canvas-full" />
-        <div className="garden-overlay-solid"></div>
-        <div className="landing-content-v2">
-          <h1 className="landing-title-v2 fadeInUp">Jardín del Edén</h1>
-          <p className="landing-subtitle-v2 fadeInUp delay-1">
+      <div className="landing-container-v3">
+        <canvas ref={compositeCanvasRef} className="landing-canvas-background" />
+        <div className="landing-overlay-v3"></div>
+        <div className="landing-content-v3">
+          <h1 className="landing-title-v3 fadeInUp">Jardín del Edén</h1>
+          <p className="landing-subtitle-v3 fadeInUp delay-1">
             {scannedGuest ? `Experiencia AR para ${scannedGuest.name}` : `Arte Floral & Experiencias AR`}
           </p>
-          <button className="scan-trigger-btn-v2 fadeInUp delay-2" onClick={handleComenzar}>
+          <button className="landing-btn-v3 fadeInUp delay-2" onClick={handleComenzar}>
             Comenzar AR
           </button>
         </div>
@@ -334,29 +344,29 @@ function App() {
   }
 
   return (
-    <div className="app-container">
-      <canvas ref={canvasRef} className="hidden-canvas" />
-      <div className="camera-view">
-        <canvas ref={compositeCanvasRef} className="full-view-canvas" />
+    <div className="camera-app-v3">
+      <canvas ref={canvasRef} className="hidden-source-canvas" />
+      <div className="camera-viewport">
+        <canvas ref={compositeCanvasRef} className="camera-output-canvas" />
       </div>
-      <div className="ui-overlay">
-        <div className="top-nav">
-          <button className="icon-btn" onClick={() => setIsLanding(true)}>
+      <div className="camera-ui">
+        <div className="ui-header">
+          <button className="ui-btn" onClick={() => setIsLanding(true)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           </button>
-          <button className="icon-btn" onClick={() => setFacingMode(f => f === 'user' ? 'environment' : 'user')}>
+          <button className="ui-btn" onClick={() => setFacingMode(f => f === 'user' ? 'environment' : 'user')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 10v4h4" /><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9 9 9 0 0 1 9 9z" /><path d="M12 7v4" /><path d="M17 10l-4-4l-4 4" /></svg>
           </button>
         </div>
-        <div className="shutter-area">
-          <button className={`shutter-trigger ${isRecording ? 'is-recording' : ''}`} onClick={() => setIsRecording(!isRecording)}>
-            <div className="shutter-core"></div>
+        <div className="ui-footer">
+          <button className={`shutter-trigger ${isRecording ? 'active' : ''}`} onClick={() => setIsRecording(!isRecording)}>
+            <div className="shutter-fill"></div>
           </button>
         </div>
         {(isLoading || error) && (
-          <div className="center-status">
-            {isLoading && <div className="loader"></div>}
-            {error && <div className="error">{error}</div>}
+          <div className="ui-status">
+            {isLoading && <div className="spinner"></div>}
+            {error && <div className="toast">{error}</div>}
           </div>
         )}
       </div>
