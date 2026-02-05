@@ -275,6 +275,22 @@ function App() {
     }
   }, [scannedGuest, initializeParticles]);
 
+  // Setup composite canvas dimensions
+  useEffect(() => {
+    const setupCanvas = () => {
+      const canvas = compositeCanvasRef.current;
+      if (!canvas) return;
+
+      // Match window size
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+
+    setupCanvas();
+    window.addEventListener('resize', setupCanvas);
+    return () => window.removeEventListener('resize', setupCanvas);
+  }, []);
+
   // Start composite animation when guest is set
   useEffect(() => {
     if (scannedGuest && compositeCanvasRef.current) {
@@ -369,7 +385,7 @@ function App() {
 
       {/* Visible composite canvas with effects */}
       <div className="camera-background">
-        <canvas ref={compositeCanvasRef} width="1280" height="720" className="camera-canvas" />
+        <canvas ref={compositeCanvasRef} className="camera-canvas" />
       </div>
 
       <div className="ui-safe-area">
