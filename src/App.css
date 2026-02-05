@@ -37,7 +37,12 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* Mirror front camera for natural feel */
+}
+
+.hidden-canvas {
+  position: absolute;
+  left: -9999px;
+  visibility: hidden;
 }
 
 /* UI Safe Area for dynamic islands/notches */
