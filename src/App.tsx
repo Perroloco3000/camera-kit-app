@@ -28,7 +28,7 @@ function App() {
   const currentStreamRef = useRef<MediaStream | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const isInitializingRef = useRef(false);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timerIntervalRef = useRef<number | null>(null);
 
   // State
   const [scannedGuest, setScannedGuest] = useState<Guest | null>(null);
@@ -243,7 +243,7 @@ function App() {
         // Timer Logic
         timerIntervalRef.current = setInterval(() => {
           setRecordingTime(prev => prev + 1);
-        }, 1000);
+        }, 1000) as unknown as number;
 
       } catch (e) {
         console.error("Recording error", e);
