@@ -10,7 +10,7 @@ export const CAMERA_KIT_CONFIG = {
   useStaging: true,
 
   // Lentes disponibles para elegir (incluye el lens original)
-  lensIds: ['49414230875'],
+  lensIds: ['6f10abf5-e52d-4326-808a-dfa569f4f4f3'],
 
   // Lens Group ID (necesario para cargar los lentes)
   lensGroupId: 'b65ebded-94d3-4570-9518-dc22795e866c',
