@@ -33,6 +33,10 @@
             width: 250px;
         }
 
+        .qr-container {
+            position: relative;
+        }
+
         .qr-img {
             width: 200px;
             height: 200px;
@@ -53,6 +57,16 @@
             margin-right: 5px;
         }
 
+        .url-display {
+            font-size: 0.7rem;
+            color: #666;
+            margin-top: 10px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            word-break: break-all;
+        }
+
         button {
             margin-top: 40px;
             padding: 15px 30px;
@@ -67,6 +81,17 @@
         button:hover {
             background: #0056b3;
         }
+
+        .download-btn {
+            margin-top: 10px;
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            background: #28a745;
+        }
+
+        .download-btn:hover {
+            background: #218838;
+        }
     </style>
 </head>
 
@@ -78,31 +103,80 @@
         <div class="card">
             <span class="color-dot" style="background: #FF2D55;"></span>
             <div class="name">María</div>
-            <img class="qr-img"
-                src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://camera-kit-app.vercel.app?_vercel_share=TEeWHZ7slV2XwlfkshyNtREWxhHmN9Wm%26guest=guest_1"
-                alt="QR María">
+            <div class="qr-container">
+                <canvas id="qr-maria" width="200" height="200"></canvas>
+            </div>
+            <div class="url-display">guest_1</div>
+            <button class="download-btn" onclick="downloadQR('qr-maria', 'Maria-QR.png')">💾 Descargar</button>
         </div>
 
         <!-- Guest 2: José -->
         <div class="card">
             <span class="color-dot" style="background: #007AFF;"></span>
             <div class="name">José</div>
-            <img class="qr-img"
-                src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://camera-kit-app.vercel.app?_vercel_share=TEeWHZ7slV2XwlfkshyNtREWxhHmN9Wm%26guest=guest_2"
-                alt="QR José">
+            <div class="qr-container">
+                <canvas id="qr-jose" width="200" height="200"></canvas>
+            </div>
+            <div class="url-display">guest_2</div>
+            <button class="download-btn" onclick="downloadQR('qr-jose', 'Jose-QR.png')">💾 Descargar</button>
         </div>
 
         <!-- Guest 3: Pedro -->
         <div class="card">
             <span class="color-dot" style="background: #34C759;"></span>
             <div class="name">Pedro</div>
-            <img class="qr-img"
-                src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://camera-kit-app.vercel.app?_vercel_share=TEeWHZ7slV2XwlfkshyNtREWxhHmN9Wm%26guest=guest_3"
-                alt="QR Pedro">
+            <div class="qr-container">
+                <canvas id="qr-pedro" width="200" height="200"></canvas>
+            </div>
+            <div class="url-display">guest_3</div>
+            <button class="download-btn" onclick="downloadQR('qr-pedro', 'Pedro-QR.png')">💾 Descargar</button>
         </div>
     </div>
 
     <button onclick="window.print()">🖨️ Imprimir QRs</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        // Base URL with Vercel share parameter
+        const baseUrl = 'https://camera-kit-app.vercel.app?_vercel_share=TEeWHZ7slV2XwlfkshyNtREWxhHmN9Wm';
+
+        // Generate QR codes
+        new QRCode(document.getElementById("qr-maria"), {
+            text: baseUrl + '&guest=guest_1',
+            width: 200,
+            height: 200,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+
+        new QRCode(document.getElementById("qr-jose"), {
+            text: baseUrl + '&guest=guest_2',
+            width: 200,
+            height: 200,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+
+        new QRCode(document.getElementById("qr-pedro"), {
+            text: baseUrl + '&guest=guest_3',
+            width: 200,
+            height: 200,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+
+        function downloadQR(canvasId, filename) {
+            const canvas = document.querySelector('#' + canvasId + ' canvas');
+            const url = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+        }
+    </script>
 </body>
 
 </html>
