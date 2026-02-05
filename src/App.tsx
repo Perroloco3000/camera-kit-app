@@ -89,10 +89,9 @@ function App() {
   const timerIntervalRef = useRef<number | null>(null);
 
   // State
-  const [isSelection, setIsSelection] = useState(true);
-  const [isLanding, setIsLanding] = useState(false);
+  const [isLanding, setIsLanding] = useState(true);
   const [scannedGuest, setScannedGuest] = useState<Guest | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Only loading when camera starts
   const [error, setError] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -135,13 +134,13 @@ function App() {
 
 
 
-  const handleGuestSelection = (guest: Guest) => {
-    setScannedGuest(guest);
-    setIsSelection(false);
-    setIsLanding(true);
-    // Force initialize particles for high-density landing
-    const lushParticles = initializeParticles(guest, true);
-    particlesRef.current = lushParticles;
+  const handleComenzar = () => {
+    setIsLanding(false);
+    startCamera().catch(err => {
+      console.error('Camera start failed:', err);
+      setError('No se pudo iniciar la cámara. Por favor, permite el acceso.');
+      setIsLoading(false);
+    });
   };
 
   // Animation loop for composite canvas with realistic physics
@@ -160,7 +159,7 @@ function App() {
     // Clear and draw CameraKit canvas (only if active)
     ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
 
-    if (!isLanding && !isSelection && sourceCanvas.width > 0) {
+    if (!isLanding && sourceCanvas.width > 0) {
       // Mirror front camera for natural selfie feel
       if (facingMode === 'user') {
         ctx.save();
@@ -423,18 +422,10 @@ function App() {
   }, [initializeParticles]);
 
   useEffect(() => {
-    // Direct QR scanner removed to avoid conflicts.
-  }, []);
-
-  useEffect(() => {
-    if (!isLanding && scannedGuest && !isSelection) {
-      startCamera().catch(err => {
-        console.error('Camera start failed:', err);
-        setError('No se pudo iniciar la cámara. Por favor, permite el acceso.');
-        setIsLoading(false);
-      });
+    if (!isLanding && scannedGuest) {
+      // Camera started via handleComenzar
     }
-  }, [startCamera, isLanding, isSelection, scannedGuest]);
+  }, [isLanding, scannedGuest]);
 
   useEffect(() => {
     if (scannedGuest) {
