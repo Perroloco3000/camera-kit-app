@@ -28,12 +28,14 @@ function App() {
   const currentStreamRef = useRef<MediaStream | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const isInitializingRef = useRef(false);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // State
   const [scannedGuest, setScannedGuest] = useState<Guest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0); // Seconds
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user"); // Start with Front camera (Selfie mode is better for "iPhone style" demos initially, or Environment?) User asked for toggle. 
   // User said "Start only allowing to scan QR" was the OLD behavior to remove.
   // Now we just start the camera. Defaulting to front ('user') is usually more engaging for AR filters, 
@@ -184,9 +186,15 @@ function App() {
 
   const toggleRecording = async () => {
     if (isRecording) {
+      // Stop
       mediaRecorderRef.current?.stop();
       setIsRecording(false);
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
     } else {
+      // Start
       if (!canvasRef.current) return;
       await ensureAudio();
 
@@ -197,33 +205,57 @@ function App() {
         audioStreamRef.current.getAudioTracks().forEach(t => finalStream.addTrack(t));
       }
 
-      const options = { mimeType: 'video/webm;codecs=vp9' }; // High quality codec preference
+      // Try MP4 first for better compatibility, then VP9 (High Quality), then default
+      // Safari iOS 14.5+ supports mp4 recording
+      let options = { mimeType: 'video/webm' };
+      if (MediaRecorder.isTypeSupported('video/mp4')) {
+        options = { mimeType: 'video/mp4' };
+      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+        options = { mimeType: 'video/webm;codecs=vp9' };
+      }
 
-      // Fallback for Safari/Basic
-      const safeOptions = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? options
-        : { mimeType: 'video/webm' };
+      try {
+        const recorder = new MediaRecorder(finalStream, options);
+        recordedChunksRef.current = [];
 
-      const recorder = new MediaRecorder(finalStream, safeOptions);
-      recordedChunksRef.current = [];
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+        };
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-      };
+        recorder.onstop = () => {
+          const ext = options.mimeType.includes('mp4') ? 'mp4' : 'webm';
+          const blob = new Blob(recordedChunksRef.current, { type: options.mimeType });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          // Specific filename as requested //
+          a.download = `El Jardin del Eden.${ext}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        };
 
-      recorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `jardin_eden_${Date.now()}.webm`;
-        a.click();
-      };
+        recorder.start();
+        mediaRecorderRef.current = recorder;
+        setIsRecording(true);
+        setRecordingTime(0);
 
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setIsRecording(true);
+        // Timer Logic
+        timerIntervalRef.current = setInterval(() => {
+          setRecordingTime(prev => prev + 1);
+        }, 1000);
+
+      } catch (e) {
+        console.error("Recording error", e);
+        setError("Error al iniciar grabación");
+      }
     }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -238,10 +270,12 @@ function App() {
 
         {/* Theme Overlay: Jardín del Edén (Always visible for theme) */}
         <div className="flower-overlay">
+          {/* Falling Petals Effect - More dynamic than static corners */}
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className={`petal p-${i}`}>🌸</div>
+          ))}
           <div className="flower-corner f-tl">🌹</div>
-          <div className="flower-corner f-tr">🌺</div>
-          <div className="flower-corner f-bl">🌿</div>
-          <div className="flower-corner f-br">🌸</div>
+          <div className="flower-corner f-br">🌹</div>
         </div>
 
         {/* Top Bar: Controls */}
@@ -249,7 +283,7 @@ function App() {
           {/* Cam Toggle */}
           <button className={`glass-btn circular ${facingMode}`} onClick={toggleCamera} aria-label="Cambiar Cámara">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M7 10v4h4" /><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9 9 9 0 0 1 9 9z" /><path d="M12 7v4" />
+              <path d="M7 10v4h4" /><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9 9 9 9 0 0 1 9-9 9 9 0 0 1 9 9z" /><path d="M12 7v4" />
               <path d="M17 10l-4-4l-4 4" />
             </svg>
           </button>
@@ -263,6 +297,15 @@ function App() {
             </div>
           )}
         </div>
+
+
+        {/* Timer Display (Visible when recording) */}
+        {isRecording && (
+          <div className="recording-timer fadeIn">
+            <div className="rec-dot"></div>
+            {formatTime(recordingTime)}
+          </div>
+        )}
 
         {/* Bottom Bar: Recording */}
         <div className="bottom-bar-floating">
