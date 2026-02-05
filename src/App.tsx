@@ -72,13 +72,12 @@ const GUESTS: Guest[] = [
 
 const FALLBACK_GUEST: Guest = {
   id: 'fallback',
-  name: 'Jardín',
+  name: 'Invitado',
   color: '#81c784',
   particles: [
     { emoji: '🌸', count: 12, speed: 0.5 },
     { emoji: '🌿', count: 12, speed: 0.4 },
     { emoji: '🌺', count: 10, speed: 0.6 },
-    { emoji: '🌷', count: 10, speed: 0.5 },
     { emoji: '✨', count: 15, speed: 0.8 }
   ]
 };
@@ -116,16 +115,17 @@ function App() {
 
   const initializeParticles = (guest: Guest, isLush = false) => {
     const particles: Particle[] = [];
-    const canvas = compositeCanvasRef.current;
-    if (!canvas || canvas.width === 0) return [];
+    // Use fallback dimensions if canvas isn't ready
+    const width = compositeCanvasRef.current?.width || window.innerWidth || 400;
+    const height = compositeCanvasRef.current?.height || window.innerHeight || 800;
 
-    const densityMultiplier = isLush ? 3 : 1;
+    const densityMultiplier = isLush ? 4 : 2;
     guest.particles.forEach(config => {
       const count = Math.floor(config.count * densityMultiplier);
       for (let i = 0; i < count; i++) {
         particles.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height * 2 - canvas.height,
+          x: Math.random() * width,
+          y: Math.random() * height * 2 - height,
           z: Math.random(),
           speed: config.speed + Math.random() * 0.5,
           rotation: Math.random() * 360,
@@ -135,10 +135,10 @@ function App() {
           rotationSpeedX: (Math.random() - 0.5) * 2,
           rotationSpeedY: (Math.random() - 0.5) * 2,
           emoji: config.emoji,
-          size: 25 + Math.random() * 25,
+          size: 20 + Math.random() * 30,
           opacity: 0,
           life: 0,
-          maxLife: (isLush ? 6 : 4) + Math.random() * 4,
+          maxLife: 5 + Math.random() * 5,
           windOffsetX: 0,
           windOffsetY: 0
         });
@@ -150,7 +150,7 @@ function App() {
   const applyLensData = useCallback(async (lensId: string, guest: Guest | null) => {
     if (!sessionRef.current || !cameraKitRef.current) return;
     try {
-      const gName = guest ? guest.name : 'Jardín';
+      const gName = guest ? guest.name : 'Invitado';
       const gColor = guest ? guest.color : '#81c784';
 
       const launchData = {
@@ -202,7 +202,7 @@ function App() {
       setIsLoading(false);
     } catch (err) {
       console.error("Camera Error", err);
-      setError('Activa la cámara para vivir la experiencia.');
+      setError('Por favor, permite el acceso a la cámara.');
     } finally {
       isInitializingRef.current = false;
     }
@@ -214,79 +214,84 @@ function App() {
   };
 
   const animate = useCallback(() => {
-    const targetCanvas = compositeCanvasRef.current;
-    if (!targetCanvas) {
-      animationFrameRef.current = requestAnimationFrame(animate);
-      return;
-    }
+    try {
+      const targetCanvas = compositeCanvasRef.current;
+      if (!targetCanvas) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
 
-    const ctx = targetCanvas.getContext('2d', { alpha: false });
-    if (!ctx) return;
+      const ctx = targetCanvas.getContext('2d', { alpha: false });
+      if (!ctx) return;
 
-    timeRef.current += 0.016;
-    const time = timeRef.current;
-    const { isLanding: landing, scannedGuest: guest, facingMode: mode } = stateRef.current;
+      timeRef.current += 0.016;
+      const time = timeRef.current;
+      const { isLanding: landing, scannedGuest: guest, facingMode: mode } = stateRef.current;
 
-    // Background color
-    ctx.fillStyle = landing ? '#001a0d' : '#000';
-    ctx.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
+      // Draw background
+      ctx.fillStyle = landing ? '#001a0d' : '#000';
+      ctx.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
 
-    if (!landing && canvasRef.current && canvasRef.current.width > 0) {
-      if (mode === 'user') {
+      // Draw Camera
+      if (!landing && canvasRef.current && canvasRef.current.width > 0) {
+        if (mode === 'user') {
+          ctx.save();
+          ctx.scale(-1, 1);
+          ctx.drawImage(canvasRef.current, -targetCanvas.width, 0, targetCanvas.width, targetCanvas.height);
+          ctx.restore();
+        } else {
+          ctx.drawImage(canvasRef.current, 0, 0, targetCanvas.width, targetCanvas.height);
+        }
+      }
+
+      // Initialize/Update Particles
+      if (particlesRef.current.length === 0) {
+        particlesRef.current = initializeParticles(guest || FALLBACK_GUEST, landing);
+      }
+
+      const windX = Math.sin(time * 0.5) * 15;
+      particlesRef.current.forEach(p => {
+        p.life += 0.016;
+        if (p.life >= p.maxLife) {
+          p.life = 0;
+          p.y = -50;
+          p.x = Math.random() * targetCanvas.width;
+        }
+        const lifeRatio = p.life / p.maxLife;
+        p.opacity = lifeRatio < 0.1 ? lifeRatio * 10 : lifeRatio > 0.9 ? (1 - lifeRatio) * 10 : 1;
+        p.y += p.speed + 0.3;
+        p.x += Math.sin(time + p.x * 0.01) * 2 + windX * 0.05;
+        p.rotation += p.rotationSpeed;
+
+        const scale = 0.5 + p.z * 0.5;
         ctx.save();
-        ctx.scale(-1, 1);
-        ctx.drawImage(canvasRef.current, -targetCanvas.width, 0, targetCanvas.width, targetCanvas.height);
+        ctx.globalAlpha = p.opacity * (0.6 + p.z * 0.4);
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.font = `${p.size * scale}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(p.emoji, 0, 0);
         ctx.restore();
-      } else {
-        ctx.drawImage(canvasRef.current, 0, 0, targetCanvas.width, targetCanvas.height);
+      });
+
+      // Overlay text
+      if (guest && !landing) {
+        ctx.save();
+        ctx.shadowColor = guest.color;
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = 'white';
+        ctx.font = 'italic 42px "Great Vibes", cursive';
+        ctx.textAlign = 'center';
+        ctx.fillText('Jardín del Edén', targetCanvas.width / 2, targetCanvas.height - 130);
+        ctx.font = 'bold 24px "Playfair Display", serif';
+        ctx.fillText(`Bienvenido, ${guest.name}`, targetCanvas.width / 2, targetCanvas.height - 85);
+        ctx.restore();
       }
+
+    } catch (e) {
+      console.error("Animation Loop Error", e);
     }
-
-    const activeGuest = guest || FALLBACK_GUEST;
-    if (particlesRef.current.length === 0) {
-      const p = initializeParticles(activeGuest, landing);
-      if (p.length > 0) particlesRef.current = p;
-    }
-
-    const windX = Math.sin(time * 0.5) * 15;
-    particlesRef.current.forEach(p => {
-      p.life += 0.016;
-      if (p.life >= p.maxLife) {
-        p.life = 0;
-        p.y = -50;
-        p.x = Math.random() * targetCanvas.width;
-      }
-      const lifeRatio = p.life / p.maxLife;
-      p.opacity = lifeRatio < 0.1 ? lifeRatio * 10 : lifeRatio > 0.9 ? (1 - lifeRatio) * 10 : 1;
-      p.y += p.speed + 0.3;
-      p.x += Math.sin(time + p.x * 0.01) * 2 + windX * 0.05;
-      p.rotation += p.rotationSpeed;
-
-      const scale = 0.5 + p.z * 0.5;
-      ctx.save();
-      ctx.globalAlpha = p.opacity * (0.6 + p.z * 0.4);
-      ctx.translate(p.x, p.y);
-      ctx.rotate((p.rotation * Math.PI) / 180);
-      ctx.font = `${p.size * scale}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(p.emoji, 0, 0);
-      ctx.restore();
-    });
-
-    if (guest && !landing) {
-      ctx.save();
-      ctx.shadowColor = guest.color;
-      ctx.shadowBlur = 20;
-      ctx.fillStyle = 'white';
-      ctx.font = 'italic 48px "Great Vibes", cursive';
-      ctx.textAlign = 'center';
-      ctx.fillText('Jardín del Edén', targetCanvas.width / 2, targetCanvas.height - 120);
-      ctx.font = 'bold 28px "Playfair Display", serif';
-      ctx.fillText(`Bienvenido, ${guest.name}`, targetCanvas.width / 2, targetCanvas.height - 70);
-      ctx.restore();
-    }
-
     animationFrameRef.current = requestAnimationFrame(animate);
   }, []);
 
@@ -302,10 +307,6 @@ function App() {
       if (compositeCanvasRef.current) {
         compositeCanvasRef.current.width = window.innerWidth;
         compositeCanvasRef.current.height = window.innerHeight;
-        // Re-init particles on resize if we have dimensions now
-        if (particlesRef.current.length === 0) {
-          particlesRef.current = initializeParticles(stateRef.current.scannedGuest || FALLBACK_GUEST, stateRef.current.isLanding);
-        }
       }
     };
     setup();
@@ -327,15 +328,15 @@ function App() {
 
   if (isLanding) {
     return (
-      <div className="landing-container-v3">
-        <canvas ref={compositeCanvasRef} className="landing-canvas-background" />
-        <div className="landing-overlay-v3"></div>
-        <div className="landing-content-v3">
-          <h1 className="landing-title-v3 fadeInUp">Jardín del Edén</h1>
-          <p className="landing-subtitle-v3 fadeInUp delay-1">
+      <div className="landing-v4">
+        <canvas ref={compositeCanvasRef} id="landing-canvas-v4" />
+        <div className="overlay-v4"></div>
+        <div className="content-v4">
+          <h1 className="title-v4 fadeInUp">Jardín del Edén</h1>
+          <p className="subtitle-v4 fadeInUp delay-1">
             {scannedGuest ? `Experiencia AR para ${scannedGuest.name}` : `Arte Floral & Experiencias AR`}
           </p>
-          <button className="landing-btn-v3 fadeInUp delay-2" onClick={handleComenzar}>
+          <button className="btn-v4 fadeInUp delay-2" onClick={handleComenzar}>
             Comenzar AR
           </button>
         </div>
@@ -344,29 +345,29 @@ function App() {
   }
 
   return (
-    <div className="camera-app-v3">
-      <canvas ref={canvasRef} className="hidden-source-canvas" />
-      <div className="camera-viewport">
-        <canvas ref={compositeCanvasRef} className="camera-output-canvas" />
+    <div className="app-v4">
+      <canvas ref={canvasRef} className="hidden-source" />
+      <div className="viewport-v4">
+        <canvas ref={compositeCanvasRef} className="output-v4" />
       </div>
-      <div className="camera-ui">
-        <div className="ui-header">
-          <button className="ui-btn" onClick={() => setIsLanding(true)}>
+      <div className="ui-v4">
+        <div className="header-v4">
+          <button className="circle-btn" onClick={() => setIsLanding(true)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           </button>
-          <button className="ui-btn" onClick={() => setFacingMode(f => f === 'user' ? 'environment' : 'user')}>
+          <button className="circle-btn" onClick={() => setFacingMode(f => f === 'user' ? 'environment' : 'user')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 10v4h4" /><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9 9 9 0 0 1 9 9z" /><path d="M12 7v4" /><path d="M17 10l-4-4l-4 4" /></svg>
           </button>
         </div>
-        <div className="ui-footer">
-          <button className={`shutter-trigger ${isRecording ? 'active' : ''}`} onClick={() => setIsRecording(!isRecording)}>
-            <div className="shutter-fill"></div>
+        <div className="footer-v4">
+          <button className={`capture-btn ${isRecording ? 'active' : ''}`} onClick={() => setIsRecording(!isRecording)}>
+            <div className="capture-inner"></div>
           </button>
         </div>
         {(isLoading || error) && (
-          <div className="ui-status">
-            {isLoading && <div className="spinner"></div>}
-            {error && <div className="toast">{error}</div>}
+          <div className="status-v4">
+            {isLoading && <div className="loader-v4"></div>}
+            {error && <div className="error-toast">{error}</div>}
           </div>
         )}
       </div>
