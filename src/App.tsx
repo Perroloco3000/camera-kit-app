@@ -134,6 +134,64 @@ function App() {
 
 
 
+  // Core Camera Logic
+  const startCamera = useCallback(async () => {
+    if (!canvasRef.current || isInitializingRef.current) return;
+    isInitializingRef.current = true;
+    setIsLoading(true);
+
+    try {
+      // Bootstrap CameraKit
+      if (!cameraKitRef.current) {
+        cameraKitRef.current = await bootstrapCameraKit({
+          apiToken: CAMERA_KIT_CONFIG.useStaging
+            ? CAMERA_KIT_CONFIG.apiToken.staging
+            : CAMERA_KIT_CONFIG.apiToken.production
+        });
+      }
+
+      // Create Session
+      if (!sessionRef.current) {
+        sessionRef.current = await cameraKitRef.current.createSession({
+          liveRenderTarget: canvasRef.current,
+        });
+      }
+      const session = sessionRef.current;
+
+      // STOP previous stream
+      if (currentStreamRef.current) {
+        currentStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+
+      // Get New Stream (720p)
+      const sourceStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: facingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+      currentStreamRef.current = sourceStream;
+
+      // Attach to CameraKit
+      const source = createMediaStreamSource(sourceStream, { cameraType: facingMode });
+      await session.setSource(source);
+      await session.play();
+
+      // Apply Lens
+      const lensId = CAMERA_KIT_CONFIG.lensIds[0];
+      await applyLensData(lensId, scannedGuest);
+
+      setIsLoading(false);
+    } catch (err) {
+      console.error("Camera Init Error:", err);
+      setError('Error al iniciar cámara. Verifica los permisos.');
+    } finally {
+      isInitializingRef.current = false;
+    }
+  }, [facingMode, scannedGuest]);
+
   const handleComenzar = useCallback(() => {
     setIsLanding(false);
     startCamera().catch(err => {
@@ -312,63 +370,7 @@ function App() {
     animationFrameRef.current = requestAnimationFrame(animateComposite);
   }, [scannedGuest, isLanding, initializeParticles, facingMode]);
 
-  // Core Camera Logic
-  const startCamera = useCallback(async () => {
-    if (!canvasRef.current || isInitializingRef.current) return;
-    isInitializingRef.current = true;
-    setIsLoading(true);
 
-    try {
-      // Bootstrap CameraKit
-      if (!cameraKitRef.current) {
-        cameraKitRef.current = await bootstrapCameraKit({
-          apiToken: CAMERA_KIT_CONFIG.useStaging
-            ? CAMERA_KIT_CONFIG.apiToken.staging
-            : CAMERA_KIT_CONFIG.apiToken.production
-        });
-      }
-
-      // Create Session
-      if (!sessionRef.current) {
-        sessionRef.current = await cameraKitRef.current.createSession({
-          liveRenderTarget: canvasRef.current,
-        });
-      }
-      const session = sessionRef.current;
-
-      // STOP previous stream
-      if (currentStreamRef.current) {
-        currentStreamRef.current.getTracks().forEach(t => t.stop());
-      }
-
-      // Get New Stream (720p)
-      const sourceStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      });
-      currentStreamRef.current = sourceStream;
-
-      // Attach to CameraKit
-      const source = createMediaStreamSource(sourceStream, { cameraType: facingMode });
-      await session.setSource(source);
-      await session.play();
-
-      // Apply Lens
-      const lensId = CAMERA_KIT_CONFIG.lensIds[0];
-      await applyLensData(lensId, scannedGuest);
-
-      setIsLoading(false);
-    } catch (err) {
-      console.error("Camera Init Error:", err);
-      setError('Error al iniciar cámara. Verifica los permisos.');
-    } finally {
-      isInitializingRef.current = false;
-    }
-  }, [facingMode, scannedGuest]);
 
   const applyLensData = async (lensId: string, guest: Guest | null) => {
     if (!sessionRef.current || !cameraKitRef.current) return;
