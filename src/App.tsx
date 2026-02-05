@@ -222,17 +222,46 @@ function App() {
           if (e.data.size > 0) recordedChunksRef.current.push(e.data);
         };
 
-        recorder.onstop = () => {
+        recorder.onstop = async () => {
           const ext = options.mimeType.includes('mp4') ? 'mp4' : 'webm';
           const blob = new Blob(recordedChunksRef.current, { type: options.mimeType });
           const url = URL.createObjectURL(blob);
+          const filename = `El Jardin del Eden.${ext}`;
+
+          // Try Web Share API for mobile (allows saving to gallery more easily)
+          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+          if (isMobile && navigator.share) {
+            try {
+              const file = new File([blob], filename, { type: options.mimeType });
+              await navigator.share({
+                files: [file],
+                title: 'Jardín del Edén',
+                text: 'Video del evento'
+              });
+              return; // Success - user can save from share menu
+            } catch (err) {
+              // User cancelled or share failed, fallback to download
+              console.log('Share cancelled, downloading instead');
+            }
+          }
+
+          // Fallback: Download file
           const a = document.createElement('a');
           a.href = url;
-          // Specific filename as requested //
-          a.download = `El Jardin del Eden.${ext}`;
+          a.download = filename;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
+
+          // Show helpful instructions for mobile users
+          if (isMobile) {
+            setTimeout(() => {
+              const msg = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+                ? '📱 Video descargado!\n\nPara guardarlo en Fotos:\n1. Abre la app "Archivos"\n2. Ve a "Descargas"\n3. Mantén presionado el video\n4. Toca "Guardar en Fotos"'
+                : '📱 Video descargado!\n\nEncuéntralo en:\n"Descargas" o "Mis Archivos"\n\nPara moverlo a Galería, ábrelo y toca "Guardar" o "Compartir"';
+              alert(msg);
+            }, 500);
+          }
         };
 
         recorder.start();
