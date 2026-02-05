@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bootstrapCameraKit, CameraKitSession, createMediaStreamSource } from '@snap/camera-kit';
 import { QRCodeSVG } from 'qrcode.react';
-import { Html5Qrcode } from 'html5-qrcode';
+
 import { CAMERA_KIT_CONFIG } from './config';
 import './App.css';
 
