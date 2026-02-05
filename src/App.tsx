@@ -254,11 +254,12 @@ function App() {
             </svg>
           </button>
 
-          {/* Guest Badge (if present) - Minimal Pill */}
+
+          {/* Guest Filter Title (Centered, Elegant) */}
           {scannedGuest && (
-            <div className="guest-pill fadeIn">
-              <span className="dot" style={{ background: scannedGuest.color }}></span>
-              {scannedGuest.name}
+            <div className="filter-title-container fadeIn">
+              <h1 className="filter-title">Jardín del Edén</h1>
+              <div className="filter-subtitle">Bienvenido, {scannedGuest.name}</div>
             </div>
           )}
         </div>
