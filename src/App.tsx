@@ -166,7 +166,7 @@ function App() {
     setError('');
 
     try {
-      console.log('Starting CameraKit Bootstrap...');
+      console.log('--- STARTING CAMERA INIT ---');
       if (!cameraKitRef.current) {
         cameraKitRef.current = await bootstrapCameraKit({
           apiToken: CAMERA_KIT_CONFIG.useStaging
@@ -175,7 +175,6 @@ function App() {
         });
       }
 
-      console.log('Creating Session...');
       if (!sessionRef.current) {
         sessionRef.current = await cameraKitRef.current.createSession({
           liveRenderTarget: canvasRef.current
@@ -186,7 +185,6 @@ function App() {
         currentStreamRef.current.getTracks().forEach(t => t.stop());
       }
 
-      console.log('Requesting Camera Access...');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: stateRef.current.facingMode,
@@ -203,24 +201,30 @@ function App() {
       if (sessionRef.current) {
         await sessionRef.current.setSource(source);
         await sessionRef.current.play();
-        console.log('CameraKit Playing');
+        console.log('--- CAMERA KIT ACTIVE ---');
       }
 
       await applyLensData(CAMERA_KIT_CONFIG.lensIds[0], stateRef.current.scannedGuest);
       setIsLoading(false);
     } catch (err) {
-      console.error('Camera Start Failed:', err);
-      setError('Error: Revisa los permisos de la cámara.');
+      console.error('FAILED TO START CAMERA:', err);
+      setError('Por favor, permite el acceso a la cámara y refresca.');
       setIsLoading(false);
     } finally {
       isInitializingRef.current = false;
     }
   }, [applyLensData]);
 
+  // USE EFFECT TO START CAMERA WHEN LANDING IS REMOVED
+  useEffect(() => {
+    if (!isLanding && canvasRef.current) {
+      startCamera();
+    }
+  }, [isLanding, startCamera]);
+
   const handleComenzar = () => {
-    console.log('Boton Comenzar Pulsado');
+    console.log('Comenzar button clicked');
     setIsLanding(false);
-    startCamera();
   };
 
   const animate = useCallback(() => {
