@@ -163,36 +163,65 @@ function App() {
     if (!canvasRef.current || isInitializingRef.current) return;
     isInitializingRef.current = true;
     setIsLoading(true);
+    setError('');
+
     try {
+      console.log('Starting CameraKit Bootstrap...');
       if (!cameraKitRef.current) {
         cameraKitRef.current = await bootstrapCameraKit({
-          apiToken: CAMERA_KIT_CONFIG.useStaging ? CAMERA_KIT_CONFIG.apiToken.staging : CAMERA_KIT_CONFIG.apiToken.production
+          apiToken: CAMERA_KIT_CONFIG.useStaging
+            ? CAMERA_KIT_CONFIG.apiToken.staging
+            : CAMERA_KIT_CONFIG.apiToken.production
         });
       }
+
+      console.log('Creating Session...');
       if (!sessionRef.current) {
-        sessionRef.current = await cameraKitRef.current.createSession({ liveRenderTarget: canvasRef.current });
+        sessionRef.current = await cameraKitRef.current.createSession({
+          liveRenderTarget: canvasRef.current
+        });
       }
+
       if (currentStreamRef.current) {
         currentStreamRef.current.getTracks().forEach(t => t.stop());
       }
+
+      console.log('Requesting Camera Access...');
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: stateRef.current.facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
+        video: {
+          facingMode: stateRef.current.facingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       });
       currentStreamRef.current = stream;
-      const source = createMediaStreamSource(stream, { cameraType: stateRef.current.facingMode });
+
+      const source = createMediaStreamSource(stream, {
+        cameraType: stateRef.current.facingMode
+      });
+
       if (sessionRef.current) {
         await sessionRef.current.setSource(source);
         await sessionRef.current.play();
+        console.log('CameraKit Playing');
       }
+
       await applyLensData(CAMERA_KIT_CONFIG.lensIds[0], stateRef.current.scannedGuest);
       setIsLoading(false);
     } catch (err) {
-      console.error(err);
-      setError('Activa la cámara para continuar.');
+      console.error('Camera Start Failed:', err);
+      setError('Error: Revisa los permisos de la cámara.');
+      setIsLoading(false);
     } finally {
       isInitializingRef.current = false;
     }
   }, [applyLensData]);
+
+  const handleComenzar = () => {
+    console.log('Boton Comenzar Pulsado');
+    setIsLanding(false);
+    startCamera();
+  };
 
   const animate = useCallback(() => {
     const targetCanvas = compositeCanvasRef.current;
