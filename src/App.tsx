@@ -84,22 +84,18 @@ const FALLBACK_GUEST: Guest = {
 };
 
 function App() {
-  // Refs for persistent state
+  // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const compositeCanvasRef = useRef<HTMLCanvasElement>(null);
   const sessionRef = useRef<CameraKitSession | null>(null);
   const cameraKitRef = useRef<any>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
   const particlesRef = useRef<Particle[]>([]);
   const animationFrameRef = useRef<number | null>(null);
   const timeRef = useRef<number>(0);
   const currentStreamRef = useRef<MediaStream | null>(null);
-  const audioStreamRef = useRef<MediaStream | null>(null);
   const isInitializingRef = useRef(false);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Use refs to store state values used in the animation loop to prevent loop restarts
+  // Sync state to ref for animation loop
   const stateRef = useRef({
     isLanding: true,
     scannedGuest: null as Guest | null,
@@ -112,10 +108,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
 
-  // Sync state to refs
   useEffect(() => {
     stateRef.current = { isLanding, scannedGuest, facingMode };
   }, [isLanding, scannedGuest, facingMode]);
@@ -168,7 +162,7 @@ function App() {
       const lens = await cameraKitRef.current.lensRepository.loadLens(lensId, CAMERA_KIT_CONFIG.lensGroupId);
       await sessionRef.current.applyLens(lens, launchData);
     } catch (e) {
-      console.error("Lens Load Error", e);
+      console.error("Lens Error", e);
     }
   }, []);
 
@@ -183,30 +177,29 @@ function App() {
           apiToken: CAMERA_KIT_CONFIG.useStaging ? CAMERA_KIT_CONFIG.apiToken.staging : CAMERA_KIT_CONFIG.apiToken.production
         });
       }
-
       if (!sessionRef.current) {
         sessionRef.current = await cameraKitRef.current.createSession({ liveRenderTarget: canvasRef.current });
       }
-
       if (currentStreamRef.current) {
         currentStreamRef.current.getTracks().forEach(t => t.stop());
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: stateRef.current.facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false
+        video: { facingMode: stateRef.current.facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
       });
       currentStreamRef.current = stream;
 
       const source = createMediaStreamSource(stream, { cameraType: stateRef.current.facingMode });
-      await sessionRef.current.setSource(source);
-      await sessionRef.current.play();
+      if (sessionRef.current) {
+        await sessionRef.current.setSource(source);
+        await sessionRef.current.play();
+      }
 
       await applyLensData(CAMERA_KIT_CONFIG.lensIds[0], stateRef.current.scannedGuest);
       setIsLoading(false);
     } catch (err) {
-      console.error("Camera Error:", err);
-      setError('Error al iniciar cámara.');
+      console.error("Camera Error", err);
+      setError('Error al conectar la cámara.');
     } finally {
       isInitializingRef.current = false;
     }
@@ -217,7 +210,6 @@ function App() {
     startCamera();
   };
 
-  // Stable animation loop
   const animate = useCallback(() => {
     const targetCanvas = compositeCanvasRef.current;
     if (!targetCanvas) {
@@ -234,7 +226,6 @@ function App() {
 
     ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
 
-    // 1. Draw Camera (if not landing)
     if (!landing && canvasRef.current && canvasRef.current.width > 0) {
       if (mode === 'user') {
         ctx.save();
@@ -246,7 +237,6 @@ function App() {
       }
     }
 
-    // 2. Update and Draw Particles
     const activeGuest = guest || FALLBACK_GUEST;
     if (particlesRef.current.length === 0) {
       particlesRef.current = initializeParticles(activeGuest, landing);
@@ -260,10 +250,8 @@ function App() {
         p.y = -50;
         p.x = Math.random() * targetCanvas.width;
       }
-
       const lifeRatio = p.life / p.maxLife;
       p.opacity = lifeRatio < 0.1 ? lifeRatio * 10 : lifeRatio > 0.9 ? (1 - lifeRatio) * 10 : 1;
-
       p.y += p.speed + 0.3;
       p.x += Math.sin(time + p.x * 0.01) * 2 + windX * 0.05;
       p.rotation += p.rotationSpeed;
@@ -280,7 +268,6 @@ function App() {
       ctx.restore();
     });
 
-    // 3. Draw UI Text (if guest)
     if (guest && !landing) {
       ctx.save();
       ctx.shadowColor = guest.color;
@@ -323,7 +310,7 @@ function App() {
       const g = GUESTS.find(x => x.id === id);
       if (g) {
         setScannedGuest(g);
-        particlesRef.current = []; // Trigger re-init
+        particlesRef.current = [];
       }
     }
   }, []);
@@ -336,7 +323,7 @@ function App() {
         <div className="landing-content-v2">
           <h1 className="landing-title-v2 fadeInUp">Jardín del Edén</h1>
           <p className="landing-subtitle-v2 fadeInUp delay-1">
-            {scannedGuest ? `Esperiencia AR para ${scannedGuest.name}` : `Arte Floral & Experiencias AR`}
+            {scannedGuest ? `Experiencia AR para ${scannedGuest.name}` : `Arte Floral & Experiencias AR`}
           </p>
           <button className="scan-trigger-btn-v2 fadeInUp delay-2" onClick={handleComenzar}>
             Comenzar AR
@@ -352,7 +339,6 @@ function App() {
       <div className="camera-view">
         <canvas ref={compositeCanvasRef} className="full-view-canvas" />
       </div>
-
       <div className="ui-overlay">
         <div className="top-nav">
           <button className="icon-btn" onClick={() => setIsLanding(true)}>
@@ -362,13 +348,11 @@ function App() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 10v4h4" /><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9 9 9 0 0 1 9 9z" /><path d="M12 7v4" /><path d="M17 10l-4-4l-4 4" /></svg>
           </button>
         </div>
-
         <div className="shutter-area">
           <button className={`shutter-trigger ${isRecording ? 'is-recording' : ''}`} onClick={() => setIsRecording(!isRecording)}>
             <div className="shutter-core"></div>
           </button>
         </div>
-
         {(isLoading || error) && (
           <div className="center-status">
             {isLoading && <div className="loader"></div>}
