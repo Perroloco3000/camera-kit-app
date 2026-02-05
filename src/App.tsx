@@ -371,7 +371,11 @@ function App() {
   }, []);
 
   useEffect(() => {
-    startCamera();
+    startCamera().catch(err => {
+      console.error('Camera start failed:', err);
+      setError('No se pudo iniciar la cámara. Por favor, permite el acceso.');
+      setIsLoading(false);
+    });
   }, [startCamera]);
 
   useEffect(() => {
