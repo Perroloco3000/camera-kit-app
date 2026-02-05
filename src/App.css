@@ -271,79 +271,29 @@ body {
   animation: fadeIn 0.8s ease;
 }
 
-/* Selection Screen */
-.selection-page {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  background: var(--ig-black);
-  z-index: 200;
-  padding: 20px;
-  overflow-y: auto;
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.selection-title {
-  font-family: 'Great Vibes', cursive;
-  font-size: 48px;
-  margin-bottom: 40px;
-  color: var(--ig-white);
+.fadeInUp {
+  animation: fadeInUp 1s cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 
-.guest-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
-  width: 100%;
-  max-width: 1000px;
+.delay-1 {
+  animation-delay: 0.3s;
 }
 
-.guest-card {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 24px;
-  padding: 24px;
-  text-align: center;
-  cursor: pointer;
-  transition: transform 0.3s ease, background 0.3s ease;
-}
-
-.guest-card:hover {
-  transform: translateY(-8px);
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.guest-qr-preview {
-  width: 180px;
-  height: 180px;
-  background: white;
-  margin: 0 auto 20px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px;
-}
-
-.guest-qr-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.guest-card h3 {
-  font-family: 'Playfair Display', serif;
-  font-size: 24px;
-  margin-bottom: 8px;
-}
-
-.guest-card p {
-  color: var(--ig-light-gray);
-  font-size: 14px;
+.delay-2 {
+  animation-delay: 0.6s;
 }
 
 /* Landing Page Garden Effects */
@@ -354,7 +304,7 @@ body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: radial-gradient(circle at top right, #1a472a, #000);
+  background: radial-gradient(circle at top right, #112d1a, #000);
   z-index: 100;
   text-align: center;
   color: white;
@@ -365,8 +315,8 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: url('https://www.transparenttextures.com/patterns/leaf.png');
-  opacity: 0.1;
+  background-image: url('data:image/svg+xml,%3Csvg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"%3E%3Cpath d="M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 86c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm66-3L78 83c-1.105 0-2 .895-2 2s.895 2 2 2 2-.895 2-2zM33 55c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm45 38c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM9 45c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm58 23c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM46 11c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM80 10c0 1.105-.895 2-2 2s-2-.895-2-2 .895-2 2-2 2 .895 2 2zM52 80c0 1.105-.895 2-2 2s-2-.895-2-2 .895-2 2-2 2 .895 2 2zM24 26c0 1.105-.895 2-2 2s-2-.895-2-2 .895-2 2-2 2 .895 2 2zM84 60c0 1.105-.895 2-2 2s-2-.895-2-2 .895-2 2-2 2 .895 2 2zM44 60c0 1.105-.895 2-2 2s-2-.895-2-2 .895-2 2-2 2 .895 2 2zM12 28c0 1.105-.895 2-2 2s-2-.895-2-2 .895-2 2-2 2 .895 2 2zM36 12c0 1.105-.895 2-2 2s-2-.895-2-2 .895-2 2-2 2 .895 2 2zM60 40c0 1.105-.895 2-2 2s-2-.895-2-2 .895-2 2-2 2 .895 2 2zM20 70c0 1.105-.895 2-2 2s-2-.895-2-2 .895-2 2-2 2 .895 2 2zM88 20c0 1.105-.895 2-2 2s-2-.895-2-2 .895-2 2-2 2 .895 2 2z" fill="%232e7d32" fill-opacity="0.1" fill-rule="evenodd"/%3E%3C/svg%3E');
+  opacity: 0.3;
   pointer-events: none;
 }
 
@@ -374,16 +324,16 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.8;
-  filter: contrast(110%) brightness(110%);
+  opacity: 0.9;
+  filter: contrast(120%) brightness(110%);
 }
 
 .garden-overlay {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, rgba(34, 197, 94, 0.15) 0%, rgba(0, 0, 0, 0.7) 100%);
+  background: radial-gradient(circle at center, rgba(34, 197, 94, 0.1) 0%, rgba(0, 0, 0, 0.8) 100%);
   z-index: 1;
-  animation: glowPulse 10s ease-in-out infinite;
+  animation: glowPulse 8s ease-in-out infinite;
 }
 
 @keyframes glowPulse {
@@ -400,36 +350,54 @@ body {
 
 .landing-title {
   font-family: 'Great Vibes', cursive;
-  font-size: 72px;
+  font-size: 82px;
   margin-bottom: 8px;
-  background: linear-gradient(to bottom, #fff 0%, #a5d6a7 100%);
+  background: linear-gradient(to bottom, #fff 20%, #81c784 100%);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.8));
+  filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.9));
+}
+
+.landing-subtitle {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px;
+  font-weight: 300;
+  color: #c8e6c9;
+  margin-bottom: 60px;
+  letter-spacing: 3px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
 .scan-trigger-btn {
-  padding: 18px 50px;
-  font-size: 20px;
-  letter-spacing: 1px;
+  position: relative;
+  padding: 20px 60px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 2px;
   text-transform: uppercase;
-  background: linear-gradient(45deg, #2e7d32, #4caf50);
+  background: linear-gradient(45deg, #1b5e20, #43a047);
   color: white;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 40px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 20px rgba(76, 175, 80, 0.4);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(76, 175, 80, 0.3);
 }
 
 .scan-trigger-btn:hover {
-  transform: scale(1.05) translateY(-2px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(76, 175, 80, 0.6);
+  transform: scale(1.08) translateY(-5px);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8), 0 0 40px rgba(76, 175, 80, 0.5);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .scan-trigger-btn:active {
-  transform: scale(0.98);
+  transform: scale(0.95);
+}
+
+/* UI Safe Area fix */
+.top-bar-floating {
+  z-index: 50;
 }
 
 /* Progress Ring */
@@ -449,13 +417,23 @@ body {
 .progress-ring__circle {
   transition: stroke-dashoffset 0.35s;
   transform-origin: 50% 50%;
-  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.7));
 }
 
 /* Mobile Optimizations */
 @media (max-width: 480px) {
   .landing-title {
-    font-size: 54px;
+    font-size: 58px;
+  }
+
+  .landing-subtitle {
+    font-size: 18px;
+    letter-spacing: 2px;
+  }
+
+  .scan-trigger-btn {
+    padding: 16px 40px;
+    font-size: 18px;
   }
 }
 

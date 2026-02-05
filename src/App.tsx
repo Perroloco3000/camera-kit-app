@@ -413,7 +413,6 @@ function App() {
       const found = GUESTS.find(g => g.id === guestId);
       if (found) {
         setScannedGuest(found);
-        setIsSelection(false);
         setIsLanding(true);
         // Apply lush effects for landing
         particlesRef.current = initializeParticles(found, true);
@@ -535,28 +534,6 @@ function App() {
 
 
 
-  if (isSelection) {
-    return (
-      <div className="selection-page">
-        <h1 className="selection-title">Invitados del Edén</h1>
-        <div className="guest-grid">
-          {GUESTS.map(guest => (
-            <div key={guest.id} className="guest-card" onClick={() => handleGuestSelection(guest)}>
-              <div className="guest-qr-preview">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://garden-ar.app/?guest=${guest.id}`}
-                  alt={`QR ${guest.name}`}
-                />
-              </div>
-              <h3 style={{ color: guest.color }}>{guest.name}</h3>
-              <p>Haz clic para entrar</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   if (isLanding) {
     return (
       <div className="landing-page">
@@ -565,10 +542,12 @@ function App() {
           <canvas ref={compositeCanvasRef} className="landing-canvas" />
         </div>
         <div className="landing-content">
-          <h1 className="landing-title">Jardín del Edén</h1>
-          <p className="landing-subtitle">Experiencia AR para {scannedGuest?.name}</p>
-          <button className="scan-trigger-btn" onClick={() => setIsLanding(false)}>
-            Comenzar
+          <h1 className="landing-title fadeInUp">Jardín del Edén</h1>
+          <p className="landing-subtitle fadeInUp delay-1">
+            {scannedGuest ? `Experiencia AR para ${scannedGuest.name}` : `Arte Floral & Experiencias AR`}
+          </p>
+          <button className="scan-trigger-btn fadeInUp delay-2" onClick={handleComenzar}>
+            Comenzar AR
           </button>
         </div>
       </div>
@@ -589,7 +568,6 @@ function App() {
         <div className="top-bar-floating">
           <button className="ig-icon-btn" onClick={() => {
             setIsLanding(true);
-            setIsSelection(false);
           }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
