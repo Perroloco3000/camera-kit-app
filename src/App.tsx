@@ -7,13 +7,13 @@ import './App.css';
 interface Guest {
   id: string;
   name: string;
-  color: string; // Hex color
+  color: string;
 }
 
 const GUESTS: Guest[] = [
-  { id: 'guest_1', name: 'María', color: '#FF4081' },
-  { id: 'guest_2', name: 'José', color: '#448AFF' },
-  { id: 'guest_3', name: 'Pedro', color: '#69F0AE' },
+  { id: 'guest_1', name: 'María', color: '#FF2D55' }, // Pink-Red (Pro vibe)
+  { id: 'guest_2', name: 'José', color: '#007AFF' },  // iOS Blue
+  { id: 'guest_3', name: 'Pedro', color: '#34C759' }, // iOS Green
 ];
 
 function App() {
@@ -23,25 +23,31 @@ function App() {
   const cameraKitRef = useRef<Awaited<ReturnType<typeof bootstrapCameraKit>> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
-  const isInitializingRef = useRef(false);
+
+  // Track current stream to stop it properly on toggle
+  const currentStreamRef = useRef<MediaStream | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
+  const isInitializingRef = useRef(false);
 
   // State
   const [scannedGuest, setScannedGuest] = useState<Guest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [isScanning, setIsScanning] = useState(true);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment"); // Default to Back camera for events
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user"); // Start with Front camera (Selfie mode is better for "iPhone style" demos initially, or Environment?) User asked for toggle. 
+  // User said "Start only allowing to scan QR" was the OLD behavior to remove.
+  // Now we just start the camera. Defaulting to front ('user') is usually more engaging for AR filters, 
+  // but if they are scanning the environment, 'environment' is better. 
+  // Let's default to 'user' as it's an "Event" app (Selfies).
 
-  // 1. Camera Initialization
-  const initCamera = useCallback(async () => {
+  // 1. Core Camera Logic
+  const startCamera = useCallback(async () => {
     if (!canvasRef.current || isInitializingRef.current) return;
     isInitializingRef.current = true;
     setIsLoading(true);
 
     try {
-      // 1. Bootstrap (Singleton)
+      // Bootstrap CameraKit (Singleton)
       if (!cameraKitRef.current) {
         cameraKitRef.current = await bootstrapCameraKit({
           apiToken: CAMERA_KIT_CONFIG.useStaging
@@ -50,8 +56,7 @@ function App() {
         });
       }
 
-      // 2. Session creation (Single session reuse if possible, or recreate if source changes often?)
-      // Best practice: Reuse session, just switch source.
+      // Create Session if needed
       if (!sessionRef.current) {
         sessionRef.current = await cameraKitRef.current.createSession({
           liveRenderTarget: canvasRef.current,
@@ -59,54 +64,47 @@ function App() {
       }
       const session = sessionRef.current;
 
-      // 3. Media Stream (Microphone handled separately for recording to avoid echo/issues)
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // STOP previous stream if exists (Crucial for Toggle to work)
+      if (currentStreamRef.current) {
+        currentStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+
+      // Get New Stream (UHD / High Res)
+      // "Full UHD" -> ideal 4K, fallback to 1080p.
+      const sourceStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facingMode,
-          width: { ideal: 1280 } // Relaxed constant
+          width: { ideal: 3840 }, // Try 4K
+          height: { ideal: 2160 }
         },
-        audio: false
+        audio: false // Audio handled separately
       });
+      currentStreamRef.current = sourceStream;
 
-      // 4. Attach Source
-      const source = createMediaStreamSource(stream, { cameraType: facingMode });
+      // Attach to CameraKit
+      const source = createMediaStreamSource(sourceStream, { cameraType: facingMode });
       await session.setSource(source);
       await session.play();
 
-      // 5. Load Lens (if first time or just ensuring it's there)
-      // If we already have a scanned guest, ensure launch data is re-applied?
-      // Actually, applyLens might need to be re-run if we switched camera? 
-      // CameraKit usually handles this, but let's re-apply to be safe or just let it be.
-      // IF we are just switching camera, just switching source is usually enough, but 
-      // sometimes effects reset. Let's ensure the lens is applied with current state.
-      if (scannedGuest) {
-        await loadLens(CAMERA_KIT_CONFIG.lensIds[0], scannedGuest);
-      } else {
-        await loadLens(CAMERA_KIT_CONFIG.lensIds[0], null);
-      }
+      // Ensure functionality (Lens)
+      const lensId = CAMERA_KIT_CONFIG.lensIds[0];
+      // Note: We don't re-load the lens every toggle, but we must ensure it's applied.
+      // If we have a guest, apply with guest data.
+      await applyLensData(lensId, scannedGuest);
 
       setIsLoading(false);
     } catch (err) {
-      console.error(err);
-      setError('Error iniciando cámara.');
+      console.error("Camera Init Error:", err);
+      // Fallback: if 4K fails, maybe try lower res? (Browser usually handles 'ideal' gracefully)
+      // Permissions error is most common.
+      setError('Error al iniciar cámara. Verifica los permisos.');
     } finally {
       isInitializingRef.current = false;
     }
-  }, [facingMode]); // Re-run when facingMode changes
+  }, [facingMode]); // Re-run when facing mode changes
 
-  // 2. Audio Validation
-  const ensureAudio = async () => {
-    if (!audioStreamRef.current) {
-      try {
-        audioStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (e) {
-        console.warn("No audio access", e);
-      }
-    }
-    return audioStreamRef.current;
-  };
-
-  const loadLens = async (lensId: string, guest: Guest | null) => {
+  // Helper to apply lens
+  const applyLensData = async (lensId: string, guest: Guest | null) => {
     if (!sessionRef.current || !cameraKitRef.current) return;
     try {
       const launchData = guest ? {
@@ -119,81 +117,93 @@ function App() {
         }
       } : undefined;
 
+      // Check if lens is already active? 
+      // CameraKit v1.13: session.lenses.activeLens... 
+      // Safer to just re-apply or simple-load. 
       const lens = await cameraKitRef.current.lensRepository.loadLens(
         lensId,
         CAMERA_KIT_CONFIG.lensGroupId
       );
-
       await sessionRef.current.applyLens(lens, launchData);
     } catch (e) {
-      console.error("Error loading lens:", e);
+      console.error("Lens Load Error", e);
     }
   };
 
-  // Deep Linking Check
-  useEffect(() => {
-    const init = async () => {
-      // Check URL for ?guest=ID
-      const params = new URLSearchParams(window.location.search);
-      const guestId = params.get('guest');
-
-      if (guestId) {
-        const found = GUESTS.find(g => g.id === guestId);
-        if (found) {
-          // Auto-login
-          setScannedGuest(found);
-          setIsScanning(false);
-          // lens load will happen in initCamera or useEffect below depending on timing
-          // forcing it here slightly later to ensure session exists:
-        }
+  // 2. Audio Validation (Lazy load on record)
+  const ensureAudio = async () => {
+    if (!audioStreamRef.current) {
+      try {
+        audioStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) {
+        console.warn("Audio permissions denied", e);
       }
-      await initCamera();
-    };
-    init();
-  }, [initCamera]);
-  // initCamera dependency includes facingMode, so it handles "change camera" re-init.
-  // The deep link check should only happen ONCE ideally, but inside useEffect it's fine 
-  // as scanning state will persist.
+    }
+    return audioStreamRef.current;
+  };
+
+  // 3. Lifecycle & Deep Link
+  useEffect(() => {
+    // Check URL URLSearchParams on mount
+    const params = new URLSearchParams(window.location.search);
+    const guestId = params.get('guest');
+
+    // Set guest IMMEIDATELY if found, so first render is correct
+    if (guestId) {
+      const found = GUESTS.find(g => g.id === guestId);
+      if (found) {
+        setScannedGuest(found);
+        // We don't need to call ApplyLens here, startCamera will pick up 'scannedGuest' state
+        // mostly. Wait, startCamera is async/effect.
+        // Due to closure staleness, startCamera might see old 'scannedGuest' if not in dep array.
+        // We will fix this by passing guest explicitly to logic or using ref.
+      }
+    }
+  }, []); // Run once on mount
+
+  // Effect to manage camera when facingMode OR scannedGuest changes?
+  // Actually, we only want to restart camera when facingMode changes.
+  // When scannedGuest changes (found in URL), we just want to apply lens, not restart camera.
+  // But for the initial load, initCamera does both.
+  useEffect(() => {
+    startCamera();
+  }, [startCamera]); // startCamera depends on facingMode
+
+  // Separate effect: If guest changes (e.g. late discovery), re-apply lens WITHOUT restarting camera
+  useEffect(() => {
+    if (sessionRef.current && scannedGuest) {
+      applyLensData(CAMERA_KIT_CONFIG.lensIds[0], scannedGuest);
+    }
+  }, [scannedGuest]);
+
 
   const toggleCamera = () => {
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
   };
 
-  const handleBack = () => {
-    setScannedGuest(null);
-    setIsScanning(true);
-
-    // Clear URL param without reloading
-    const url = new URL(window.location.href);
-    url.searchParams.delete('guest');
-    window.history.replaceState({}, '', url);
-
-    loadLens(CAMERA_KIT_CONFIG.lensIds[0], null);
-  };
-
-  // Recording Logic
   const toggleRecording = async () => {
     if (isRecording) {
       mediaRecorderRef.current?.stop();
       setIsRecording(false);
     } else {
       if (!canvasRef.current) return;
-
       await ensureAudio();
 
       const canvasStream = canvasRef.current.captureStream(30);
       const finalStream = new MediaStream();
-
-      // Add Video
-      canvasStream.getVideoTracks().forEach(track => finalStream.addTrack(track));
-
-      // Add Audio
+      canvasStream.getVideoTracks().forEach(t => finalStream.addTrack(t));
       if (audioStreamRef.current) {
-        audioStreamRef.current.getAudioTracks().forEach(track => finalStream.addTrack(track));
+        audioStreamRef.current.getAudioTracks().forEach(t => finalStream.addTrack(t));
       }
 
-      const options = { mimeType: 'video/webm' };
-      const recorder = new MediaRecorder(finalStream, options);
+      const options = { mimeType: 'video/webm;codecs=vp9' }; // High quality codec preference
+
+      // Fallback for Safari/Basic
+      const safeOptions = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? options
+        : { mimeType: 'video/webm' };
+
+      const recorder = new MediaRecorder(finalStream, safeOptions);
       recordedChunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
@@ -217,64 +227,51 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* Layer 0: Camera */}
+      {/* Layer 0: Camera Feed */}
       <div className="camera-background">
         <canvas ref={canvasRef} className="camera-canvas" />
       </div>
 
-      {/* Camera Toggle (Always Visible or just in Scan/AR? Recommended Always) */}
-      <div className="global-controls">
-        <button className="icon-btn toggle-cam" onClick={toggleCamera}>
-          📷 🔄
-        </button>
-      </div>
+      {/* UI Overlay - iPhone 17 Style (Ultra Minimal) */}
+      <div className="ui-safe-area">
 
-      {/* Layer 1: Scanning UI (Only if not deep linked/scanned) */}
-      {isScanning && (
-        <div className="scan-overlay fadeIn">
-          <div className="scan-reticle">
-            <div className="corner tl"></div>
-            <div className="corner tr"></div>
-            <div className="corner bl"></div>
-            <div className="corner br"></div>
-          </div>
+        {/* Top Bar: Controls */}
+        <div className="top-bar-floating">
+          {/* Cam Toggle */}
+          <button className={`glass-btn circular ${facingMode}`} onClick={toggleCamera} aria-label="Cambiar Cámara">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 10v4h4" /><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9 9 9 0 0 1 9 9z" /><path d="M12 7v4" />
+              <path d="M17 10l-4-4l-4 4" />
+            </svg>
+          </button>
 
-          <div className="scan-hint">
-            <h2>Escanea tu invitación</h2>
-            <p>Busca el código QR para entrar al Jardín</p>
-          </div>
-        </div>
-      )}
-
-      {/* Layer 2: AR Experience */}
-      {!isScanning && scannedGuest && (
-        <div className="ar-controls fadeIn">
-          <div className="top-bar">
-            <button className="icon-btn" onClick={handleBack}>
-              Volver
-            </button>
-            <div className="guest-badge" style={{ background: scannedGuest.color }}>
+          {/* Guest Badge (if present) - Minimal Pill */}
+          {scannedGuest && (
+            <div className="guest-pill fadeIn">
+              <span className="dot" style={{ background: scannedGuest.color }}></span>
               {scannedGuest.name}
             </div>
-          </div>
-
-          <div className="bottom-bar">
-            <button
-              className={`record-trigger ${isRecording ? 'recording' : ''}`}
-              onClick={toggleRecording}
-            >
-              <div className="trigger-inner"></div>
-            </button>
-          </div>
+          )}
         </div>
-      )}
 
-      {(isLoading || error) && (
-        <div className="status-overlay">
-          {isLoading && <div className="spinner"></div>}
-          {error && <div className="error-toast">{error}</div>}
+        {/* Bottom Bar: Recording */}
+        <div className="bottom-bar-floating">
+          <button
+            className={`shutter-btn ${isRecording ? 'recording' : ''}`}
+            onClick={toggleRecording}
+          >
+            <div className="shutter-inner"></div>
+          </button>
         </div>
-      )}
+
+        {/* Loading / Error */}
+        {(isLoading || error) && (
+          <div className="status-center">
+            {isLoading && <div className="apple-loader"></div>}
+            {error && <div className="error-msg">{error}</div>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

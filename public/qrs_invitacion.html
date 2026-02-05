@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QRs para Invitación - Jardín del Edén</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 40px; background: #f0f0f0; }
+        h1 { margin-bottom: 40px; }
+        .grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px; }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 250px; }
+        .qr-img { width: 200px; height: 200px; margin-bottom: 20px; }
+        .name { font-size: 1.5rem; font-weight: bold; margin-bottom: 10px; }
+        .color-dot { display: inline-block; width: 15px; height: 15px; border-radius: 50%; margin-right: 5px; }
+        .url-text { font-size: 0.7rem; color: #888; word-break: break-all; margin-top: 10px; }
+        button { margin-top: 40px; padding: 15px 30px; font-size: 1rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>QRs de Invitación - Evento "Jardín del Edén"</h1>
+    <p>Estos QRs abren la App directamente con el usuario identificado.</p>
+    
+    <div class="grid">
+        <!-- Guest 1: María -->
+        <div class="card">
+            <span class="color-dot" style="background: #FF4081;"></span>
+            <div class="name">María</div>
+            <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://camera-kit-app.vercel.app?guest=guest_1" alt="QR María">
+            <div class="url-text">...vercel.app?guest=guest_1</div>
+        </div>
+
+        <!-- Guest 2: José -->
+        <div class="card">
+            <span class="color-dot" style="background: #448AFF;"></span>
+            <div class="name">José</div>
+            <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://camera-kit-app.vercel.app?guest=guest_2" alt="QR José">
+            <div class="url-text">...vercel.app?guest=guest_2</div>
+        </div>
+
+        <!-- Guest 3: Pedro -->
+        <div class="card">
+            <span class="color-dot" style="background: #69F0AE;"></span>
+            <div class="name">Pedro</div>
+            <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://camera-kit-app.vercel.app?guest=guest_3" alt="QR Pedro">
+            <div class="url-text">...vercel.app?guest=guest_3</div>
+        </div>
+    </div>
+
+    <button onclick="window.print()">Imprimir QRs</button>
+</body>
+</html>
