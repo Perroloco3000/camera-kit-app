@@ -1,4 +1,6 @@
 /* Font: System Default (San Francisco / Inter) */
+@import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Playfair+Display:ital@0;1&display=swap');
+
 :root {
   --blur-amt: 30px;
   --glass: rgba(25, 25, 25, 0.65);
@@ -16,9 +18,6 @@ body {
   color: white;
   -webkit-font-smoothing: antialiased;
 }
-
-/* Import Elegant Font (Using system serif fallback if webfont fails, or standard cursive) */
-@import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Playfair+Display:ital@0;1&display=swap');
 
 .app-container {
   position: relative;
