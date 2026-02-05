@@ -348,6 +348,13 @@ body {
   }
 }
 
+.landing-content {
+  position: relative;
+  z-index: 10;
+  padding: 20px;
+  pointer-events: auto;
+}
+
 .landing-title {
   font-family: 'Great Vibes', cursive;
   font-size: 82px;

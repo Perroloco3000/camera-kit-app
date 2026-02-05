@@ -134,14 +134,14 @@ function App() {
 
 
 
-  const handleComenzar = () => {
+  const handleComenzar = useCallback(() => {
     setIsLanding(false);
     startCamera().catch(err => {
       console.error('Camera start failed:', err);
       setError('No se pudo iniciar la cámara. Por favor, permite el acceso.');
       setIsLoading(false);
     });
-  };
+  }, [startCamera]);
 
   // Animation loop for composite canvas with realistic physics
   const animateComposite = useCallback(() => {
@@ -310,7 +310,7 @@ function App() {
     }
 
     animationFrameRef.current = requestAnimationFrame(animateComposite);
-  }, [scannedGuest]);
+  }, [scannedGuest, isLanding, initializeParticles, facingMode]);
 
   // Core Camera Logic
   const startCamera = useCallback(async () => {
@@ -546,7 +546,11 @@ function App() {
           <p className="landing-subtitle fadeInUp delay-1">
             {scannedGuest ? `Experiencia AR para ${scannedGuest.name}` : `Arte Floral & Experiencias AR`}
           </p>
-          <button className="scan-trigger-btn fadeInUp delay-2" onClick={handleComenzar}>
+          <button
+            className="scan-trigger-btn fadeInUp delay-2"
+            onClick={handleComenzar}
+            style={{ pointerEvents: 'auto', zIndex: 1000 }}
+          >
             Comenzar AR
           </button>
         </div>
