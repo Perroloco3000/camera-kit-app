@@ -131,6 +131,55 @@ function App() {
     return particles;
   }, []);
 
+  // QR Scanning Logic
+  const startQrScanner = useCallback(async () => {
+    if (scannerRef.current) return;
+
+    try {
+      const scanner = new Html5Qrcode('qr-reader');
+      scannerRef.current = scanner;
+
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          try {
+            const url = new URL(decodedText);
+            const guestId = url.searchParams.get('guest');
+            if (guestId) {
+              const found = GUESTS.find(g => g.id === guestId);
+              if (found) {
+                setScannedGuest(found);
+                stopQrScanner();
+              }
+            }
+          } catch (e) {
+            // Not a URL, check if it's a direct ID
+            const found = GUESTS.find(g => g.id === decodedText);
+            if (found) {
+              setScannedGuest(found);
+              stopQrScanner();
+            }
+          }
+        },
+        () => { } // silent error
+      );
+    } catch (err) {
+      console.error('Scanner init error:', err);
+    }
+  }, []);
+
+  const stopQrScanner = useCallback(async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current = null;
+      } catch (e) {
+        console.error('Stop scanner error:', e);
+      }
+    }
+  }, []);
+
   // Animation loop for composite canvas with realistic physics
   const animateComposite = useCallback(() => {
     const sourceCanvas = canvasRef.current;
@@ -399,6 +448,15 @@ function App() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (!isLanding && !scannedGuest) {
+      startQrScanner();
+    }
+    return () => {
+      stopQrScanner();
+    }
+  }, [isLanding, scannedGuest, startQrScanner, stopQrScanner]);
 
   useEffect(() => {
     if (!isLanding) {
