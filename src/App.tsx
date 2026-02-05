@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bootstrapCameraKit, CameraKitSession, createMediaStreamSource } from '@snap/camera-kit';
-import { QRCodeSVG } from 'qrcode.react';
-
 import { CAMERA_KIT_CONFIG } from './config';
 import './App.css';
 
@@ -26,7 +24,6 @@ function App() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const isInitializingRef = useRef(false);
-
   const audioStreamRef = useRef<MediaStream | null>(null);
 
   // State
@@ -35,15 +32,16 @@ function App() {
   const [error, setError] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isScanning, setIsScanning] = useState(true);
-  const [showTestModal, setShowTestModal] = useState(false);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment"); // Default to Back camera for events
 
   // 1. Camera Initialization
   const initCamera = useCallback(async () => {
-    if (!canvasRef.current || isInitializingRef.current || sessionRef.current) return;
+    if (!canvasRef.current || isInitializingRef.current) return;
     isInitializingRef.current = true;
     setIsLoading(true);
 
     try {
+      // 1. Bootstrap (Singleton)
       if (!cameraKitRef.current) {
         cameraKitRef.current = await bootstrapCameraKit({
           apiToken: CAMERA_KIT_CONFIG.useStaging
@@ -52,32 +50,49 @@ function App() {
         });
       }
 
-      const session = await cameraKitRef.current.createSession({
-        liveRenderTarget: canvasRef.current,
-      });
-      sessionRef.current = session;
+      // 2. Session creation (Single session reuse if possible, or recreate if source changes often?)
+      // Best practice: Reuse session, just switch source.
+      if (!sessionRef.current) {
+        sessionRef.current = await cameraKitRef.current.createSession({
+          liveRenderTarget: canvasRef.current,
+        });
+      }
+      const session = sessionRef.current;
 
+      // 3. Media Stream (Microphone handled separately for recording to avoid echo/issues)
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 720 } }, // Use BACK camera by default for scanning
-        audio: false // We grab audio separately for recording
+        video: {
+          facingMode: facingMode,
+          width: { ideal: 1280 } // Relaxed constant
+        },
+        audio: false
       });
 
-      const source = createMediaStreamSource(stream);
+      // 4. Attach Source
+      const source = createMediaStreamSource(stream, { cameraType: facingMode });
       await session.setSource(source);
       await session.play();
 
-      // Load initial lens 
-      await loadLens(CAMERA_KIT_CONFIG.lensIds[0], null);
+      // 5. Load Lens (if first time or just ensuring it's there)
+      // If we already have a scanned guest, ensure launch data is re-applied?
+      // Actually, applyLens might need to be re-run if we switched camera? 
+      // CameraKit usually handles this, but let's re-apply to be safe or just let it be.
+      // IF we are just switching camera, just switching source is usually enough, but 
+      // sometimes effects reset. Let's ensure the lens is applied with current state.
+      if (scannedGuest) {
+        await loadLens(CAMERA_KIT_CONFIG.lensIds[0], scannedGuest);
+      } else {
+        await loadLens(CAMERA_KIT_CONFIG.lensIds[0], null);
+      }
 
       setIsLoading(false);
-      startQrScanner();
     } catch (err) {
       console.error(err);
       setError('Error iniciando cámara.');
     } finally {
       isInitializingRef.current = false;
     }
-  }, []);
+  }, [facingMode]); // Re-run when facingMode changes
 
   // 2. Audio Validation
   const ensureAudio = async () => {
@@ -115,35 +130,44 @@ function App() {
     }
   };
 
-  // QR Scanner Logic 
-  const startQrScanner = async () => {
-    // NOTE: Real scanning simultaneously with CameraKit AR on mobile web is highly unstable due to single-camera locking.
-    // For this event demo, we recommend using the "Test QRs" simulation button.
-  };
-
-  // *ACTUAL* QR Logic Helper (using file or camera if we weren't using CameraKit)
-  // Given the complexity of CameraKit + QRScanner simultaneously on one Mobile Camera, 
-  // I will add a "Escanear QR" button that temporarily switches mode OR use the explicit "Simulate"
-  // for the specific "Jardin del Eden" demo to ensure it works smoothly.
-
-  // WAIT, the user *wants* it. I'll add the "Scan from Image" fallback or try to scan the canvas.
-  // We'll trust the User can use "Simulate" if real scan fails, but I will provide the UI.
-
+  // Deep Linking Check
   useEffect(() => {
-    initCamera();
+    const init = async () => {
+      // Check URL for ?guest=ID
+      const params = new URLSearchParams(window.location.search);
+      const guestId = params.get('guest');
+
+      if (guestId) {
+        const found = GUESTS.find(g => g.id === guestId);
+        if (found) {
+          // Auto-login
+          setScannedGuest(found);
+          setIsScanning(false);
+          // lens load will happen in initCamera or useEffect below depending on timing
+          // forcing it here slightly later to ensure session exists:
+        }
+      }
+      await initCamera();
+    };
+    init();
   }, [initCamera]);
+  // initCamera dependency includes facingMode, so it handles "change camera" re-init.
+  // The deep link check should only happen ONCE ideally, but inside useEffect it's fine 
+  // as scanning state will persist.
 
-
-
-  const handleSimulateScan = (guest: Guest) => {
-    setScannedGuest(guest);
-    setIsScanning(false);
-    loadLens(CAMERA_KIT_CONFIG.lensIds[0], guest);
+  const toggleCamera = () => {
+    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
   };
 
   const handleBack = () => {
     setScannedGuest(null);
     setIsScanning(true);
+
+    // Clear URL param without reloading
+    const url = new URL(window.location.href);
+    url.searchParams.delete('guest');
+    window.history.replaceState({}, '', url);
+
     loadLens(CAMERA_KIT_CONFIG.lensIds[0], null);
   };
 
@@ -198,10 +222,14 @@ function App() {
         <canvas ref={canvasRef} className="camera-canvas" />
       </div>
 
-      {/* Hidden div for QR logic if needed */}
-      <div id="reader-hidden" style={{ display: 'none' }}></div>
+      {/* Camera Toggle (Always Visible or just in Scan/AR? Recommended Always) */}
+      <div className="global-controls">
+        <button className="icon-btn toggle-cam" onClick={toggleCamera}>
+          📷 🔄
+        </button>
+      </div>
 
-      {/* Layer 1: Scanning UI */}
+      {/* Layer 1: Scanning UI (Only if not deep linked/scanned) */}
       {isScanning && (
         <div className="scan-overlay fadeIn">
           <div className="scan-reticle">
@@ -214,13 +242,6 @@ function App() {
           <div className="scan-hint">
             <h2>Escanea tu invitación</h2>
             <p>Busca el código QR para entrar al Jardín</p>
-          </div>
-
-          {/* Forcing simple simulation for stability in demo */}
-          <div className="debug-actions">
-            <button onClick={() => setShowTestModal(true)} className="btn-secondary">
-              🔍 Ver QRs de Prueba
-            </button>
           </div>
         </div>
       )}
@@ -244,27 +265,6 @@ function App() {
             >
               <div className="trigger-inner"></div>
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Test Modal */}
-      {showTestModal && (
-        <div className="modal-backdrop" onClick={() => setShowTestModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h3>Códigos de Invitación</h3>
-            <div className="qr-grid">
-              {GUESTS.map(g => (
-                <div key={g.id} className="qr-item" onClick={() => {
-                  handleSimulateScan(g); // Auto-scan on click for convenience
-                  setShowTestModal(false);
-                }}>
-                  <QRCodeSVG value={JSON.stringify({ id: g.id })} size={100} />
-                  <span>{g.name}</span>
-                </div>
-              ))}
-            </div>
-            <button className="close-btn" onClick={() => setShowTestModal(false)}>Cerrar</button>
           </div>
         </div>
       )}
