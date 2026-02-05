@@ -271,8 +271,8 @@ body {
   animation: fadeIn 0.8s ease;
 }
 
-/* Landing Page */
-.landing-page {
+/* Selection Screen */
+.selection-page {
   position: absolute;
   inset: 0;
   display: flex;
@@ -280,71 +280,156 @@ body {
   justify-content: center;
   align-items: center;
   background: var(--ig-black);
+  z-index: 200;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.selection-title {
+  font-family: 'Great Vibes', cursive;
+  font-size: 48px;
+  margin-bottom: 40px;
+  color: var(--ig-white);
+}
+
+.guest-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  width: 100%;
+  max-width: 1000px;
+}
+
+.guest-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.3s ease, background 0.3s ease;
+}
+
+.guest-card:hover {
+  transform: translateY(-8px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.guest-qr-preview {
+  width: 180px;
+  height: 180px;
+  background: white;
+  margin: 0 auto 20px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+
+.guest-qr-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.guest-card h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.guest-card p {
+  color: var(--ig-light-gray);
+  font-size: 14px;
+}
+
+/* Landing Page Garden Effects */
+.landing-page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle at top right, #1a472a, #000);
   z-index: 100;
   text-align: center;
   color: white;
+  overflow: hidden;
 }
 
-.landing-bg {
+.landing-page::before {
+  content: '';
   position: absolute;
   inset: 0;
-  z-index: -1;
+  background: url('https://www.transparenttextures.com/patterns/leaf.png');
+  opacity: 0.1;
+  pointer-events: none;
 }
 
 .landing-canvas {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.6;
+  opacity: 0.8;
+  filter: contrast(110%) brightness(110%);
 }
 
 .garden-overlay {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, rgba(34, 197, 94, 0.2) 0%, rgba(0, 0, 0, 0.8) 100%);
+  background: radial-gradient(circle at center, rgba(34, 197, 94, 0.15) 0%, rgba(0, 0, 0, 0.7) 100%);
   z-index: 1;
+  animation: glowPulse 10s ease-in-out infinite;
 }
 
-.landing-content {
-  z-index: 2;
-  padding: 20px;
+@keyframes glowPulse {
+
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 0.9;
+  }
 }
 
 .landing-title {
   font-family: 'Great Vibes', cursive;
-  font-size: 64px;
+  font-size: 72px;
   margin-bottom: 8px;
-  background: linear-gradient(to bottom, #fff, #888);
+  background: linear-gradient(to bottom, #fff 0%, #a5d6a7 100%);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
-}
-
-.landing-subtitle {
-  font-family: 'Playfair Display', serif;
-  font-size: 20px;
-  font-weight: 300;
-  color: var(--ig-light-gray);
-  margin-bottom: 48px;
-  letter-spacing: 2px;
+  filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.8));
 }
 
 .scan-trigger-btn {
-  padding: 16px 40px;
-  font-size: 18px;
-  font-weight: 600;
-  background: var(--ig-white);
-  color: var(--ig-black);
-  border: none;
-  border-radius: 30px;
+  padding: 18px 50px;
+  font-size: 20px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  background: linear-gradient(45deg, #2e7d32, #4caf50);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 40px;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 20px rgba(76, 175, 80, 0.4);
+}
+
+.scan-trigger-btn:hover {
+  transform: scale(1.05) translateY(-2px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(76, 175, 80, 0.6);
 }
 
 .scan-trigger-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.98);
 }
 
 /* Progress Ring */
@@ -370,7 +455,7 @@ body {
 /* Mobile Optimizations */
 @media (max-width: 480px) {
   .landing-title {
-    font-size: 48px;
+    font-size: 54px;
   }
 }
 

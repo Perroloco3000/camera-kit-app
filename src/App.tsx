@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bootstrapCameraKit, CameraKitSession, createMediaStreamSource } from '@snap/camera-kit';
-import { Html5Qrcode } from 'html5-qrcode';
 import { CAMERA_KIT_CONFIG } from './config';
 import './App.css';
 
@@ -87,11 +86,11 @@ function App() {
   const currentStreamRef = useRef<MediaStream | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const isInitializingRef = useRef(false);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
   const timerIntervalRef = useRef<number | null>(null);
 
   // State
-  const [isLanding, setIsLanding] = useState(true);
+  const [isSelection, setIsSelection] = useState(true);
+  const [isLanding, setIsLanding] = useState(false);
   const [scannedGuest, setScannedGuest] = useState<Guest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -100,16 +99,19 @@ function App() {
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
 
   // Initialize particles for guest with realistic physics
-  const initializeParticles = useCallback((guest: Guest) => {
+  const initializeParticles = useCallback((guest: Guest, isLush = false) => {
     const particles: Particle[] = [];
     const canvas = compositeCanvasRef.current;
     if (!canvas) return particles;
 
+    const densityMultiplier = isLush ? 3 : 1;
+
     guest.particles.forEach(config => {
-      for (let i = 0; i < config.count; i++) {
+      const count = Math.floor(config.count * densityMultiplier);
+      for (let i = 0; i < count; i++) {
         particles.push({
           x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height - canvas.height,
+          y: Math.random() * canvas.height - (isLush ? canvas.height * 2 : canvas.height),
           z: Math.random(), // Random depth
           speed: config.speed + Math.random() * 0.5,
           rotation: Math.random() * 360,
@@ -122,7 +124,7 @@ function App() {
           size: 25 + Math.random() * 25,
           opacity: 0,
           life: 0,
-          maxLife: 3 + Math.random() * 2,
+          maxLife: (isLush ? 5 : 3) + Math.random() * 3,
           windOffsetX: 0,
           windOffsetY: 0
         });
@@ -131,54 +133,16 @@ function App() {
     return particles;
   }, []);
 
-  // QR Scanning Logic
-  const startQrScanner = useCallback(async () => {
-    if (scannerRef.current) return;
 
-    try {
-      const scanner = new Html5Qrcode('qr-reader');
-      scannerRef.current = scanner;
 
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        (decodedText) => {
-          try {
-            const url = new URL(decodedText);
-            const guestId = url.searchParams.get('guest');
-            if (guestId) {
-              const found = GUESTS.find(g => g.id === guestId);
-              if (found) {
-                setScannedGuest(found);
-                stopQrScanner();
-              }
-            }
-          } catch (e) {
-            // Not a URL, check if it's a direct ID
-            const found = GUESTS.find(g => g.id === decodedText);
-            if (found) {
-              setScannedGuest(found);
-              stopQrScanner();
-            }
-          }
-        },
-        () => { } // silent error
-      );
-    } catch (err) {
-      console.error('Scanner init error:', err);
-    }
-  }, []);
-
-  const stopQrScanner = useCallback(async () => {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.stop();
-        scannerRef.current = null;
-      } catch (e) {
-        console.error('Stop scanner error:', e);
-      }
-    }
-  }, []);
+  const handleGuestSelection = (guest: Guest) => {
+    setScannedGuest(guest);
+    setIsSelection(false);
+    setIsLanding(true);
+    // Force initialize particles for high-density landing
+    const lushParticles = initializeParticles(guest, true);
+    particlesRef.current = lushParticles;
+  };
 
   // Animation loop for composite canvas with realistic physics
   const animateComposite = useCallback(() => {
@@ -193,17 +157,19 @@ function App() {
     timeRef.current += 0.016; // ~60fps
     const time = timeRef.current;
 
-    // Clear and draw CameraKit canvas
+    // Clear and draw CameraKit canvas (only if active)
     ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
 
-    // Mirror front camera for natural selfie feel
-    if (facingMode === 'user') {
-      ctx.save();
-      ctx.scale(-1, 1);
-      ctx.drawImage(sourceCanvas, -targetCanvas.width, 0, targetCanvas.width, targetCanvas.height);
-      ctx.restore();
-    } else {
-      ctx.drawImage(sourceCanvas, 0, 0, targetCanvas.width, targetCanvas.height);
+    if (!isLanding && !isSelection && sourceCanvas.width > 0) {
+      // Mirror front camera for natural selfie feel
+      if (facingMode === 'user') {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(sourceCanvas, -targetCanvas.width, 0, targetCanvas.width, targetCanvas.height);
+        ctx.restore();
+      } else {
+        ctx.drawImage(sourceCanvas, 0, 0, targetCanvas.width, targetCanvas.height);
+      }
     }
 
     // Wind simulation
@@ -216,9 +182,12 @@ function App() {
       name: 'Jardín',
       color: '#34C759',
       particles: [
-        { emoji: '🌸', count: 10, speed: 0.5 },
-        { emoji: '🌿', count: 10, speed: 0.4 },
-        { emoji: '✨', count: 5, speed: 0.6 }
+        { emoji: '🌸', count: 12, speed: 0.5 },
+        { emoji: '🌿', count: 12, speed: 0.4 },
+        { emoji: '✨', count: 8, speed: 0.6 },
+        { emoji: '🌺', count: 10, speed: 0.55 },
+        { emoji: '🌷', count: 8, speed: 0.45 },
+        { emoji: '🌻', count: 6, speed: 0.7 }
       ]
     };
 
@@ -445,35 +414,36 @@ function App() {
       const found = GUESTS.find(g => g.id === guestId);
       if (found) {
         setScannedGuest(found);
+        setIsSelection(false);
+        setIsLanding(true);
+        // Apply lush effects for landing
+        particlesRef.current = initializeParticles(found, true);
       }
     }
+  }, [initializeParticles]);
+
+  useEffect(() => {
+    // Direct QR scanner removed to avoid conflicts.
   }, []);
 
   useEffect(() => {
-    if (!isLanding && !scannedGuest) {
-      startQrScanner();
-    }
-    return () => {
-      stopQrScanner();
-    }
-  }, [isLanding, scannedGuest, startQrScanner, stopQrScanner]);
-
-  useEffect(() => {
-    if (!isLanding) {
+    if (!isLanding && scannedGuest && !isSelection) {
       startCamera().catch(err => {
         console.error('Camera start failed:', err);
         setError('No se pudo iniciar la cámara. Por favor, permite el acceso.');
         setIsLoading(false);
       });
     }
-  }, [startCamera, isLanding]);
+  }, [startCamera, isLanding, isSelection, scannedGuest]);
 
   useEffect(() => {
-    if (sessionRef.current && scannedGuest) {
-      applyLensData(CAMERA_KIT_CONFIG.lensIds[0], scannedGuest);
-      particlesRef.current = initializeParticles(scannedGuest);
+    if (scannedGuest) {
+      if (sessionRef.current) {
+        applyLensData(CAMERA_KIT_CONFIG.lensIds[0], scannedGuest);
+      }
+      particlesRef.current = initializeParticles(scannedGuest, isLanding);
     }
-  }, [scannedGuest, initializeParticles]);
+  }, [scannedGuest, isLanding, initializeParticles]);
 
   // Setup composite canvas dimensions
   useEffect(() => {
@@ -574,17 +544,38 @@ function App() {
 
 
 
+  if (isSelection) {
+    return (
+      <div className="selection-page">
+        <h1 className="selection-title">Invitados del Edén</h1>
+        <div className="guest-grid">
+          {GUESTS.map(guest => (
+            <div key={guest.id} className="guest-card" onClick={() => handleGuestSelection(guest)}>
+              <div className="guest-qr-preview">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://garden-ar.app/?guest=${guest.id}`}
+                  alt={`QR ${guest.name}`}
+                />
+              </div>
+              <h3 style={{ color: guest.color }}>{guest.name}</h3>
+              <p>Haz clic para entrar</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (isLanding) {
     return (
       <div className="landing-page">
         <div className="landing-bg">
           <div className="garden-overlay"></div>
-          {/* We can use the composite canvas for landing effects too */}
           <canvas ref={compositeCanvasRef} className="landing-canvas" />
         </div>
         <div className="landing-content">
           <h1 className="landing-title">Jardín del Edén</h1>
-          <p className="landing-subtitle">Arte Floral & Experiencias AR</p>
+          <p className="landing-subtitle">Experiencia AR para {scannedGuest?.name}</p>
           <button className="scan-trigger-btn" onClick={() => setIsLanding(false)}>
             Comenzar
           </button>
@@ -595,9 +586,6 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* Hidden QR Reader for background scanning */}
-      <div id="qr-reader" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}></div>
-
       {/* Hidden CameraKit canvas */}
       <canvas ref={canvasRef} className="camera-canvas hidden-canvas" />
 
@@ -608,7 +596,10 @@ function App() {
 
       <div className="ui-safe-area">
         <div className="top-bar-floating">
-          <button className="ig-icon-btn" onClick={() => setIsLanding(true)}>
+          <button className="ig-icon-btn" onClick={() => {
+            setIsLanding(true);
+            setIsSelection(false);
+          }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
