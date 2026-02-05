@@ -110,26 +110,26 @@
             <button class="download-btn" onclick="downloadQR('qr-maria', 'Maria-QR.png')">💾 Descargar</button>
         </div>
 
-        <!-- Guest 2: José -->
+        <!-- Guest 2: Pedro -->
         <div class="card">
-            <span class="color-dot" style="background: #007AFF;"></span>
-            <div class="name">José</div>
-            <div class="qr-container">
-                <canvas id="qr-jose" width="200" height="200"></canvas>
-            </div>
-            <div class="url-display">guest_2</div>
-            <button class="download-btn" onclick="downloadQR('qr-jose', 'Jose-QR.png')">💾 Descargar</button>
-        </div>
-
-        <!-- Guest 3: Pedro -->
-        <div class="card">
-            <span class="color-dot" style="background: #34C759;"></span>
+            <span class="color-dot" style="background: #FFD700;"></span>
             <div class="name">Pedro</div>
             <div class="qr-container">
                 <canvas id="qr-pedro" width="200" height="200"></canvas>
             </div>
-            <div class="url-display">guest_3</div>
+            <div class="url-display">guest_2</div>
             <button class="download-btn" onclick="downloadQR('qr-pedro', 'Pedro-QR.png')">💾 Descargar</button>
+        </div>
+
+        <!-- Guest 3: Yanis -->
+        <div class="card">
+            <span class="color-dot" style="background: #34C759;"></span>
+            <div class="name">Yanis</div>
+            <div class="qr-container">
+                <canvas id="qr-yanis" width="200" height="200"></canvas>
+            </div>
+            <div class="url-display">guest_3</div>
+            <button class="download-btn" onclick="downloadQR('qr-yanis', 'Yanis-QR.png')">💾 Descargar</button>
         </div>
     </div>
 
@@ -150,7 +150,7 @@
             correctLevel: QRCode.CorrectLevel.H
         });
 
-        new QRCode(document.getElementById("qr-jose"), {
+        new QRCode(document.getElementById("qr-pedro"), {
             text: baseUrl + '&guest=guest_2',
             width: 200,
             height: 200,
@@ -159,7 +159,7 @@
             correctLevel: QRCode.CorrectLevel.H
         });
 
-        new QRCode(document.getElementById("qr-pedro"), {
+        new QRCode(document.getElementById("qr-yanis"), {
             text: baseUrl + '&guest=guest_3',
             width: 200,
             height: 200,

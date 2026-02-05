@@ -20,11 +20,21 @@ interface ParticleConfig {
 interface Particle {
   x: number;
   y: number;
+  z: number; // Depth (0 = far, 1 = close)
   speed: number;
   rotation: number;
   rotationSpeed: number;
+  rotationX: number; // 3D rotation
+  rotationY: number;
+  rotationSpeedX: number;
+  rotationSpeedY: number;
   emoji: string;
   size: number;
+  opacity: number;
+  life: number; // 0 to 1
+  maxLife: number;
+  windOffsetX: number;
+  windOffsetY: number;
 }
 
 const GUESTS: Guest[] = [
@@ -33,26 +43,29 @@ const GUESTS: Guest[] = [
     name: 'María',
     color: '#FF2D55',
     particles: [
-      { emoji: '🌹', count: 8, speed: 1 },
-      { emoji: '💖', count: 5, speed: 0.8 }
+      { emoji: '🌹', count: 15, speed: 0.8 },
+      { emoji: '💖', count: 10, speed: 0.6 },
+      { emoji: '✨', count: 8, speed: 1.0 }
     ]
   },
   {
     id: 'guest_2',
-    name: 'José',
-    color: '#007AFF',
+    name: 'Pedro',
+    color: '#FFD700',
     particles: [
-      { emoji: '⭐', count: 10, speed: 1.2 },
-      { emoji: '✨', count: 8, speed: 0.9 }
+      { emoji: '⭐', count: 12, speed: 1.0 },
+      { emoji: '💫', count: 10, speed: 0.9 },
+      { emoji: '✨', count: 8, speed: 1.2 }
     ]
   },
   {
     id: 'guest_3',
-    name: 'Pedro',
+    name: 'Yanis',
     color: '#34C759',
     particles: [
-      { emoji: '🌿', count: 12, speed: 0.7 },
-      { emoji: '🍃', count: 8, speed: 1.1 }
+      { emoji: '🌿', count: 15, speed: 0.7 },
+      { emoji: '🍃', count: 12, speed: 0.9 },
+      { emoji: '🌱', count: 8, speed: 0.8 }
     ]
   },
 ];
@@ -67,6 +80,7 @@ function App() {
   const recordedChunksRef = useRef<Blob[]>([]);
   const particlesRef = useRef<Particle[]>([]);
   const animationFrameRef = useRef<number | null>(null);
+  const timeRef = useRef<number>(0);
 
   // Track current stream to stop it properly on toggle
   const currentStreamRef = useRef<MediaStream | null>(null);
@@ -82,7 +96,7 @@ function App() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
 
-  // Initialize particles for guest
+  // Initialize particles for guest with realistic physics
   const initializeParticles = useCallback((guest: Guest) => {
     const particles: Particle[] = [];
     const canvas = compositeCanvasRef.current;
@@ -93,18 +107,28 @@ function App() {
         particles.push({
           x: Math.random() * canvas.width,
           y: Math.random() * canvas.height - canvas.height,
+          z: Math.random(), // Random depth
           speed: config.speed + Math.random() * 0.5,
           rotation: Math.random() * 360,
-          rotationSpeed: (Math.random() - 0.5) * 2,
+          rotationSpeed: (Math.random() - 0.5) * 3,
+          rotationX: Math.random() * 360,
+          rotationY: Math.random() * 360,
+          rotationSpeedX: (Math.random() - 0.5) * 2,
+          rotationSpeedY: (Math.random() - 0.5) * 2,
           emoji: config.emoji,
-          size: 30 + Math.random() * 20
+          size: 25 + Math.random() * 25,
+          opacity: 0,
+          life: 0,
+          maxLife: 3 + Math.random() * 2,
+          windOffsetX: 0,
+          windOffsetY: 0
         });
       }
     });
     return particles;
   }, []);
 
-  // Animation loop for composite canvas
+  // Animation loop for composite canvas with realistic physics
   const animateComposite = useCallback(() => {
     const sourceCanvas = canvasRef.current;
     const targetCanvas = compositeCanvasRef.current;
@@ -113,46 +137,128 @@ function App() {
     const ctx = targetCanvas.getContext('2d');
     if (!ctx) return;
 
+    // Update time
+    timeRef.current += 0.016; // ~60fps
+    const time = timeRef.current;
+
     // Clear and draw CameraKit canvas
     ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
     ctx.drawImage(sourceCanvas, 0, 0, targetCanvas.width, targetCanvas.height);
 
-    // Draw and update particles
-    if (scannedGuest) {
-      ctx.font = '30px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+    // Wind simulation
+    const windX = Math.sin(time * 0.5) * 15;
+    const windY = Math.cos(time * 0.3) * 8;
 
+    // Draw and update particles with realistic physics
+    if (scannedGuest) {
       particlesRef.current.forEach(particle => {
+        // Update lifecycle
+        particle.life += 0.016;
+        const lifeRatio = particle.life / particle.maxLife;
+
+        // Fade in/out
+        if (lifeRatio < 0.1) {
+          particle.opacity = lifeRatio * 10;
+        } else if (lifeRatio > 0.9) {
+          particle.opacity = (1 - lifeRatio) * 10;
+        } else {
+          particle.opacity = 1;
+        }
+
+        // Physics simulation
+        const gravity = 0.3;
+        const turbulence = Math.sin(time + particle.x * 0.01) * 2;
+
+        particle.windOffsetX += (windX - particle.windOffsetX) * 0.05;
+        particle.windOffsetY += (windY - particle.windOffsetY) * 0.05;
+
+        particle.y += particle.speed + gravity;
+        particle.x += particle.windOffsetX * 0.1 + turbulence;
+
+        // 3D rotation
+        particle.rotation += particle.rotationSpeed;
+        particle.rotationX += particle.rotationSpeedX;
+        particle.rotationY += particle.rotationSpeedY;
+
+        // Depth-based scaling
+        const depthScale = 0.5 + particle.z * 0.5;
+        const finalSize = particle.size * depthScale;
+        const finalOpacity = particle.opacity * (0.6 + particle.z * 0.4);
+
+        // Draw shadow
         ctx.save();
-        ctx.translate(particle.x, particle.y);
+        ctx.globalAlpha = finalOpacity * 0.3;
+        ctx.filter = 'blur(4px)';
+        ctx.translate(particle.x + 3, particle.y + 3);
         ctx.rotate((particle.rotation * Math.PI) / 180);
-        ctx.globalAlpha = 0.8;
+        ctx.font = `${finalSize}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#000000';
         ctx.fillText(particle.emoji, 0, 0);
         ctx.restore();
 
-        // Update position
-        particle.y += particle.speed;
-        particle.rotation += particle.rotationSpeed;
+        // Draw particle with glow
+        ctx.save();
+        ctx.globalAlpha = finalOpacity;
+
+        // Glow effect
+        ctx.shadowColor = scannedGuest.color;
+        ctx.shadowBlur = 15 * depthScale;
+
+        ctx.translate(particle.x, particle.y);
+        ctx.rotate((particle.rotation * Math.PI) / 180);
+
+        // 3D perspective effect
+        const perspective = Math.cos((particle.rotationY * Math.PI) / 180);
+        ctx.scale(Math.abs(perspective), 1);
+
+        ctx.font = `${finalSize}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(particle.emoji, 0, 0);
+        ctx.restore();
 
         // Reset if off screen
-        if (particle.y > targetCanvas.height + 50) {
+        if (particle.y > targetCanvas.height + 50 || particle.life >= particle.maxLife) {
           particle.y = -50;
           particle.x = Math.random() * targetCanvas.width;
+          particle.z = Math.random();
+          particle.life = 0;
+          particle.rotation = Math.random() * 360;
+          particle.rotationX = Math.random() * 360;
+          particle.rotationY = Math.random() * 360;
         }
       });
 
-      // Draw title overlay
+      // Draw elegant text overlay
       ctx.save();
-      ctx.shadowColor = 'rgba(0,0,0,0.5)';
-      ctx.shadowBlur = 10;
-      ctx.font = 'italic 48px "Great Vibes", cursive';
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.fillText('Jardín del Edén', targetCanvas.width / 2, targetCanvas.height - 150);
+      ctx.shadowColor = 'rgba(0,0,0,0.7)';
+      ctx.shadowBlur = 20;
+      ctx.shadowOffsetY = 4;
 
-      ctx.font = '24px "Playfair Display", serif';
-      ctx.fillText(`Bienvenido, ${scannedGuest.name}`, targetCanvas.width / 2, targetCanvas.height - 100);
+      // Title
+      ctx.font = 'italic 56px "Great Vibes", cursive, serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = scannedGuest.color;
+      ctx.lineWidth = 2;
+      ctx.textAlign = 'center';
+
+      const titleY = targetCanvas.height - 150;
+      ctx.strokeText('Jardín del Edén', targetCanvas.width / 2, titleY);
+      ctx.fillText('Jardín del Edén', targetCanvas.width / 2, titleY);
+
+      // Guest name with glow
+      ctx.shadowColor = scannedGuest.color;
+      ctx.shadowBlur = 25;
+      ctx.font = 'bold 36px "Playfair Display", serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = scannedGuest.color;
+      ctx.lineWidth = 3;
+
+      const nameY = targetCanvas.height - 90;
+      ctx.strokeText(`Bienvenido, ${scannedGuest.name}`, targetCanvas.width / 2, nameY);
+      ctx.fillText(`Bienvenido, ${scannedGuest.name}`, targetCanvas.width / 2, nameY);
       ctx.restore();
     }
 
