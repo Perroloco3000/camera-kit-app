@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bootstrapCameraKit, CameraKitSession, createMediaStreamSource } from '@snap/camera-kit';
+import { Html5Qrcode } from 'html5-qrcode';
 import { CAMERA_KIT_CONFIG } from './config';
 import './App.css';
 
@@ -86,9 +87,11 @@ function App() {
   const currentStreamRef = useRef<MediaStream | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const isInitializingRef = useRef(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const timerIntervalRef = useRef<number | null>(null);
 
   // State
+  const [isLanding, setIsLanding] = useState(true);
   const [scannedGuest, setScannedGuest] = useState<Guest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -159,7 +162,23 @@ function App() {
     const windY = Math.cos(time * 0.3) * 8;
 
     // Draw and update particles with realistic physics
-    if (scannedGuest) {
+    // If no guest is scanned (like on landing), show a default 'garden' effect
+    const activeGuest = scannedGuest || {
+      name: 'Jardín',
+      color: '#34C759',
+      particles: [
+        { emoji: '🌸', count: 10, speed: 0.5 },
+        { emoji: '🌿', count: 10, speed: 0.4 },
+        { emoji: '✨', count: 5, speed: 0.6 }
+      ]
+    };
+
+    // Ensure particles are initialized if they are empty (for landing)
+    if (particlesRef.current.length === 0) {
+      particlesRef.current = initializeParticles(activeGuest as Guest);
+    }
+
+    if (particlesRef.current.length > 0) {
       particlesRef.current.forEach(particle => {
         // Update lifecycle
         particle.life += 0.016;
@@ -212,7 +231,7 @@ function App() {
         ctx.globalAlpha = finalOpacity;
 
         // Glow effect
-        ctx.shadowColor = scannedGuest.color;
+        ctx.shadowColor = activeGuest.color;
         ctx.shadowBlur = 15 * depthScale;
 
         ctx.translate(particle.x, particle.y);
@@ -240,35 +259,37 @@ function App() {
         }
       });
 
-      // Draw elegant text overlay
-      ctx.save();
-      ctx.shadowColor = 'rgba(0,0,0,0.7)';
-      ctx.shadowBlur = 20;
-      ctx.shadowOffsetY = 4;
+      // Draw elegant text overlay if guest is scanned
+      if (scannedGuest) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.7)';
+        ctx.shadowBlur = 20;
+        ctx.shadowOffsetY = 4;
 
-      // Title
-      ctx.font = 'italic 56px "Great Vibes", cursive, serif';
-      ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = scannedGuest.color;
-      ctx.lineWidth = 2;
-      ctx.textAlign = 'center';
+        // Title
+        ctx.font = 'italic 56px "Great Vibes", cursive, serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = scannedGuest.color;
+        ctx.lineWidth = 2;
+        ctx.textAlign = 'center';
 
-      const titleY = targetCanvas.height - 150;
-      ctx.strokeText('Jardín del Edén', targetCanvas.width / 2, titleY);
-      ctx.fillText('Jardín del Edén', targetCanvas.width / 2, titleY);
+        const titleY = targetCanvas.height - 150;
+        ctx.strokeText('Jardín del Edén', targetCanvas.width / 2, titleY);
+        ctx.fillText('Jardín del Edén', targetCanvas.width / 2, titleY);
 
-      // Guest name with glow
-      ctx.shadowColor = scannedGuest.color;
-      ctx.shadowBlur = 25;
-      ctx.font = 'bold 36px "Playfair Display", serif';
-      ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = scannedGuest.color;
-      ctx.lineWidth = 3;
+        // Guest name with glow
+        ctx.shadowColor = scannedGuest.color;
+        ctx.shadowBlur = 25;
+        ctx.font = 'bold 36px "Playfair Display", serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = scannedGuest.color;
+        ctx.lineWidth = 3;
 
-      const nameY = targetCanvas.height - 90;
-      ctx.strokeText(`Bienvenido, ${scannedGuest.name}`, targetCanvas.width / 2, nameY);
-      ctx.fillText(`Bienvenido, ${scannedGuest.name}`, targetCanvas.width / 2, nameY);
-      ctx.restore();
+        const nameY = targetCanvas.height - 90;
+        ctx.strokeText(`Bienvenido, ${scannedGuest.name}`, targetCanvas.width / 2, nameY);
+        ctx.fillText(`Bienvenido, ${scannedGuest.name}`, targetCanvas.width / 2, nameY);
+        ctx.restore();
+      }
     }
 
     animationFrameRef.current = requestAnimationFrame(animateComposite);
@@ -380,12 +401,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    startCamera().catch(err => {
-      console.error('Camera start failed:', err);
-      setError('No se pudo iniciar la cámara. Por favor, permite el acceso.');
-      setIsLoading(false);
-    });
-  }, [startCamera]);
+    if (!isLanding) {
+      startCamera().catch(err => {
+        console.error('Camera start failed:', err);
+        setError('No se pudo iniciar la cámara. Por favor, permite el acceso.');
+        setIsLoading(false);
+      });
+    }
+  }, [startCamera, isLanding]);
 
   useEffect(() => {
     if (sessionRef.current && scannedGuest) {
@@ -491,14 +514,32 @@ function App() {
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+
+
+  if (isLanding) {
+    return (
+      <div className="landing-page">
+        <div className="landing-bg">
+          <div className="garden-overlay"></div>
+          {/* We can use the composite canvas for landing effects too */}
+          <canvas ref={compositeCanvasRef} className="landing-canvas" />
+        </div>
+        <div className="landing-content">
+          <h1 className="landing-title">Jardín del Edén</h1>
+          <p className="landing-subtitle">Arte Floral & Experiencias AR</p>
+          <button className="scan-trigger-btn" onClick={() => setIsLanding(false)}>
+            Comenzar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
+      {/* Hidden QR Reader for background scanning */}
+      <div id="qr-reader" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}></div>
+
       {/* Hidden CameraKit canvas */}
       <canvas ref={canvasRef} className="camera-canvas hidden-canvas" />
 
@@ -509,7 +550,12 @@ function App() {
 
       <div className="ui-safe-area">
         <div className="top-bar-floating">
-          <button className={`glass-btn circular ${facingMode}`} onClick={toggleCamera} aria-label="Cambiar Cámara">
+          <button className="ig-icon-btn" onClick={() => setIsLanding(true)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <button className={`ig-icon-btn ${facingMode}`} onClick={toggleCamera} aria-label="Cambiar Cámara">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M7 10v4h4" /><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9 9 9 0 0 1 9 9z" /><path d="M12 7v4" />
               <path d="M17 10l-4-4l-4 4" />
@@ -517,20 +563,33 @@ function App() {
           </button>
         </div>
 
-        {isRecording && (
-          <div className="recording-timer fadeIn">
-            <div className="rec-dot"></div>
-            {formatTime(recordingTime)}
-          </div>
-        )}
-
         <div className="bottom-bar-floating">
-          <button
-            className={`shutter-btn ${isRecording ? 'recording' : ''}`}
-            onClick={toggleRecording}
-          >
-            <div className="shutter-inner"></div>
-          </button>
+          <div className="shutter-container">
+            {isRecording && (
+              <svg className="progress-ring" width="88" height="88">
+                <circle
+                  className="progress-ring__circle"
+                  stroke="white"
+                  strokeWidth="4"
+                  fill="transparent"
+                  r="40"
+                  cx="44"
+                  cy="44"
+                  style={{
+                    strokeDasharray: `${2 * Math.PI * 40}`,
+                    strokeDashoffset: `${2 * Math.PI * 40 * (1 - Math.min(recordingTime / 15, 1))}`,
+                    transition: 'stroke-dashoffset 1s linear'
+                  }}
+                />
+              </svg>
+            )}
+            <button
+              className={`shutter-btn ${isRecording ? 'recording' : ''}`}
+              onClick={toggleRecording}
+            >
+              <div className="shutter-inner"></div>
+            </button>
+          </div>
         </div>
 
         {(isLoading || error) && (
