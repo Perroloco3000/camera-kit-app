@@ -205,7 +205,7 @@ function App() {
   const animateComposite = useCallback(() => {
     const sourceCanvas = canvasRef.current;
     const targetCanvas = compositeCanvasRef.current;
-    if (!sourceCanvas || !targetCanvas) return;
+    if (!targetCanvas) return;
 
     const ctx = targetCanvas.getContext('2d');
     if (!ctx) return;
@@ -217,7 +217,7 @@ function App() {
     // Clear and draw CameraKit canvas (only if active)
     ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
 
-    if (!isLanding && sourceCanvas.width > 0) {
+    if (!isLanding && sourceCanvas && sourceCanvas.width > 0) {
       // Mirror front camera for natural selfie feel
       if (facingMode === 'user') {
         ctx.save();
