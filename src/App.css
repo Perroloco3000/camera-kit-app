@@ -208,3 +208,66 @@ body {
     opacity: 1;
   }
 }
+
+/* Theme: Jardín del Edén Overlay */
+/* Lightweight CSS-only floral frame */
+.flower-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  overflow: hidden;
+}
+
+.flower-corner {
+  position: absolute;
+  font-size: 3rem;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
+  animation: floatFlower 3s ease-in-out infinite;
+}
+
+.f-tl {
+  top: 10px;
+  left: 10px;
+  animation-delay: 0s;
+}
+
+.f-tr {
+  top: 10px;
+  right: 10px;
+  animation-delay: 1s;
+}
+
+.f-bl {
+  bottom: 80px;
+  left: 10px;
+  animation-delay: 2s;
+}
+
+/* Above bar */
+.f-br {
+  bottom: 80px;
+  right: 10px;
+  animation-delay: 0.5s;
+}
+
+/* Vignette for atmosphere */
+.flower-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, transparent 60%, rgba(255, 64, 129, 0.15) 100%);
+  z-index: -1;
+}
+
+@keyframes floatFlower {
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-5px) rotate(5deg);
+  }
+}

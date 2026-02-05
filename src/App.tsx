@@ -69,13 +69,14 @@ function App() {
         currentStreamRef.current.getTracks().forEach(t => t.stop());
       }
 
-      // Get New Stream (UHD / High Res)
-      // "Full UHD" -> ideal 4K, fallback to 1080p.
+      // Get New Stream (720p HD for performance/compatibility)
+      // "Pro" tip: 4K is too heavy for many mobile browsers/devices (Redmi 13C). 
+      // 720p is the sweet spot for WebAR fluidity.
       const sourceStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facingMode,
-          width: { ideal: 3840 }, // Try 4K
-          height: { ideal: 2160 }
+          width: { ideal: 1280 }, // 720p
+          height: { ideal: 720 }
         },
         audio: false // Audio handled separately
       });
@@ -234,6 +235,14 @@ function App() {
 
       {/* UI Overlay - iPhone 17 Style (Ultra Minimal) */}
       <div className="ui-safe-area">
+
+        {/* Theme Overlay: Jardín del Edén (Always visible for theme) */}
+        <div className="flower-overlay">
+          <div className="flower-corner f-tl">🌹</div>
+          <div className="flower-corner f-tr">🌺</div>
+          <div className="flower-corner f-bl">🌿</div>
+          <div className="flower-corner f-br">🌸</div>
+        </div>
 
         {/* Top Bar: Controls */}
         <div className="top-bar-floating">
